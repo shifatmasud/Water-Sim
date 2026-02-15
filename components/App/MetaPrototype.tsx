@@ -31,15 +31,36 @@ const MetaPrototype = () => {
   const [lightPosition, setLightPosition] = useState({ x: 2, y: 3, z: -2 }); // XYZ position for light direction
   const [skyPreset, setSkyPreset] = useState('default'); // 'default', 'sunset', etc.
   const [lightIntensity, setLightIntensity] = useState(2.0);
-  const [specularIntensity, setSpecularIntensity] = useState(2.0);
+  const [specularIntensity, setSpecularIntensity] = useState(0.5);
   const [useCustomWaterColor, setUseCustomWaterColor] = useState(false);
   const [waterColorShallow, setWaterColorShallow] = useState('#aaddff'); // Light cyan
   const [waterColorDeep, setWaterColorDeep] = useState('#005577'); // Dark cyan
+
+  // -- Granular Physics State --
+  const [simDamping, setSimDamping] = useState(0.995);
+  const [simWind, setSimWind] = useState(0.0005);
+  const [matRoughness, setMatRoughness] = useState(0.1);
+  const [matMetalness, setMatMetalness] = useState(0.0);
+  const [matIor, setMatIor] = useState(1.333);
+  const [sunShininess, setSunShininess] = useState(30.0); // New state for specular sharpness
+
+  // -- New FX State --
+  const [interactionStrength, setInteractionStrength] = useState(0.03);
+  const [waveSpeed, setWaveSpeed] = useState(1.0);
+  const [bubbleSize, setBubbleSize] = useState(0.04);
+  const [bubbleOpacity, setBubbleOpacity] = useState(0.8);
 
   // -- Direct API ref for real-time updates --
   const sceneApiRef = useRef<{ 
     setLightIntensity?: (v: number) => void; 
     setSpecularIntensity?: (v: number) => void; 
+    setDamping?: (v: number) => void;
+    setWindStrength?: (v: number) => void;
+    setPhysicalConfig?: (r: number, m: number, ior: number) => void;
+    setSunShininess?: (v: number) => void;
+    setInteractionStrength?: (v: number) => void;
+    setWaveSpeed?: (v: number) => void;
+    setBubbleConfig?: (size: number, opacity: number) => void;
   } | null>(null);
 
   // -- Confetti State --
@@ -69,9 +90,29 @@ const MetaPrototype = () => {
   
   useEffect(() => {
     if (!isCodeFocused) {
-      setCodeText(JSON.stringify({ isPaused, lightPosition, skyPreset, lightIntensity, specularIntensity, useCustomWaterColor, waterColorShallow, waterColorDeep, ...simulationConfig }, null, 2));
+      setCodeText(JSON.stringify({ 
+          isPaused, 
+          lightPosition, 
+          skyPreset, 
+          lightIntensity, 
+          specularIntensity, 
+          useCustomWaterColor, 
+          waterColorShallow, 
+          waterColorDeep, 
+          simDamping,
+          simWind,
+          matRoughness,
+          matMetalness,
+          matIor,
+          sunShininess,
+          interactionStrength,
+          waveSpeed,
+          bubbleSize,
+          bubbleOpacity,
+          ...simulationConfig 
+      }, null, 2));
     }
-  }, [isPaused, lightPosition, skyPreset, lightIntensity, specularIntensity, useCustomWaterColor, waterColorShallow, waterColorDeep, simulationConfig, isCodeFocused]);
+  }, [isPaused, lightPosition, skyPreset, lightIntensity, specularIntensity, useCustomWaterColor, waterColorShallow, waterColorDeep, simulationConfig, isCodeFocused, simDamping, simWind, matRoughness, matMetalness, matIor, sunShininess, interactionStrength, waveSpeed, bubbleSize, bubbleOpacity]);
 
 
   // -- Actions --
@@ -189,6 +230,20 @@ const MetaPrototype = () => {
       logEvent(`Deep water color changed to ${newColor}`);
   };
 
+  // -- Granular Setters --
+  const handleDampingCommit = (v: number) => { setSimDamping(v); logEvent(`Damping set to ${v.toFixed(3)}`); };
+  const handleWindCommit = (v: number) => { setSimWind(v); logEvent(`Wind set to ${v.toFixed(4)}`); };
+  const handleRoughnessCommit = (v: number) => { setMatRoughness(v); logEvent(`Roughness set to ${v.toFixed(2)}`); };
+  const handleMetalnessCommit = (v: number) => { setMatMetalness(v); logEvent(`Metalness set to ${v.toFixed(2)}`); };
+  const handleIorCommit = (v: number) => { setMatIor(v); logEvent(`IOR set to ${v.toFixed(2)}`); };
+  const handleSunShininessCommit = (v: number) => { setSunShininess(v); logEvent(`Sun Shininess set to ${v.toFixed(1)}`); };
+  
+  // -- FX Setters --
+  const handleInteractionStrengthCommit = (v: number) => { setInteractionStrength(v); logEvent(`Interaction Strength: ${v.toFixed(2)}`); };
+  const handleWaveSpeedCommit = (v: number) => { setWaveSpeed(v); logEvent(`Wave Speed: ${v.toFixed(2)}`); };
+  const handleBubbleSizeCommit = (v: number) => { setBubbleSize(v); logEvent(`Bubble Size: ${v.toFixed(2)}`); };
+  const handleBubbleOpacityCommit = (v: number) => { setBubbleOpacity(v); logEvent(`Bubble Opacity: ${v.toFixed(2)}`); };
+
 
   return (
     <div style={{
@@ -209,6 +264,17 @@ const MetaPrototype = () => {
         useCustomWaterColor={useCustomWaterColor}
         waterColorShallow={waterColorShallow}
         waterColorDeep={waterColorDeep}
+        // New Props
+        simDamping={simDamping}
+        simWind={simWind}
+        matRoughness={matRoughness}
+        matMetalness={matMetalness}
+        matIor={matIor}
+        sunShininess={sunShininess}
+        interactionStrength={interactionStrength}
+        waveSpeed={waveSpeed}
+        bubbleSize={bubbleSize}
+        bubbleOpacity={bubbleOpacity}
         sceneApiRef={sceneApiRef}
       />
 
@@ -241,6 +307,28 @@ const MetaPrototype = () => {
               onWaterColorShallowChange={handleWaterColorShallowChange}
               waterColorDeep={waterColorDeep}
               onWaterColorDeepChange={handleWaterColorDeepChange}
+              // Granular Controls
+              simDamping={simDamping}
+              onSimDampingCommit={handleDampingCommit}
+              simWind={simWind}
+              onSimWindCommit={handleWindCommit}
+              matRoughness={matRoughness}
+              onMatRoughnessCommit={handleRoughnessCommit}
+              matMetalness={matMetalness}
+              onMatMetalnessCommit={handleMetalnessCommit}
+              matIor={matIor}
+              onMatIorCommit={handleIorCommit}
+              sunShininess={sunShininess}
+              onSunShininessCommit={handleSunShininessCommit}
+              // FX Controls
+              interactionStrength={interactionStrength}
+              onInteractionStrengthCommit={handleInteractionStrengthCommit}
+              waveSpeed={waveSpeed}
+              onWaveSpeedCommit={handleWaveSpeedCommit}
+              bubbleSize={bubbleSize}
+              onBubbleSizeCommit={handleBubbleSizeCommit}
+              bubbleOpacity={bubbleOpacity}
+              onBubbleOpacityCommit={handleBubbleOpacityCommit}
             />
           </FloatingWindow>
         )}

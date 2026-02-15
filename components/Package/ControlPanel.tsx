@@ -29,6 +29,28 @@ interface ControlPanelProps {
   onWaterColorShallowChange: (e: any) => void;
   waterColorDeep: string;
   onWaterColorDeepChange: (e: any) => void;
+  // Granular Controls
+  simDamping: number;
+  onSimDampingCommit: (v: number) => void;
+  simWind: number;
+  onSimWindCommit: (v: number) => void;
+  matRoughness: number;
+  onMatRoughnessCommit: (v: number) => void;
+  matMetalness: number;
+  onMatMetalnessCommit: (v: number) => void;
+  matIor: number;
+  onMatIorCommit: (v: number) => void;
+  sunShininess: number;
+  onSunShininessCommit: (v: number) => void;
+  // FX Controls
+  interactionStrength: number;
+  onInteractionStrengthCommit: (v: number) => void;
+  waveSpeed: number;
+  onWaveSpeedCommit: (v: number) => void;
+  bubbleSize: number;
+  onBubbleSizeCommit: (v: number) => void;
+  bubbleOpacity: number;
+  onBubbleOpacityCommit: (v: number) => void;
 }
 
 const SKY_PRESETS = [
@@ -57,6 +79,26 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     onWaterColorShallowChange,
     waterColorDeep,
     onWaterColorDeepChange,
+    simDamping,
+    onSimDampingCommit,
+    simWind,
+    onSimWindCommit,
+    matRoughness,
+    onMatRoughnessCommit,
+    matMetalness,
+    onMatMetalnessCommit,
+    matIor,
+    onMatIorCommit,
+    sunShininess,
+    onSunShininessCommit,
+    interactionStrength,
+    onInteractionStrengthCommit,
+    waveSpeed,
+    onWaveSpeedCommit,
+    bubbleSize,
+    onBubbleSizeCommit,
+    bubbleOpacity,
+    onBubbleOpacityCommit,
 }) => {
   const { theme } = useTheme();
 
@@ -65,12 +107,34 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   const lightZ_MV = useMotionValue(lightPosition.z);
   const lightIntensityMV = useMotionValue(lightIntensity);
   const specularIntensityMV = useMotionValue(specularIntensity);
+  
+  // New MV
+  const dampingMV = useMotionValue(simDamping);
+  const windMV = useMotionValue(simWind);
+  const roughnessMV = useMotionValue(matRoughness);
+  const metalnessMV = useMotionValue(matMetalness);
+  const iorMV = useMotionValue(matIor);
+  const shininessMV = useMotionValue(sunShininess);
+  const interactionMV = useMotionValue(interactionStrength);
+  const waveSpeedMV = useMotionValue(waveSpeed);
+  const bubbleSizeMV = useMotionValue(bubbleSize);
+  const bubbleOpacityMV = useMotionValue(bubbleOpacity);
 
   React.useEffect(() => { lightX_MV.set(lightPosition.x) }, [lightPosition.x, lightX_MV]);
   React.useEffect(() => { lightY_MV.set(lightPosition.y) }, [lightPosition.y, lightY_MV]);
   React.useEffect(() => { lightZ_MV.set(lightPosition.z) }, [lightPosition.z, lightZ_MV]);
   React.useEffect(() => { lightIntensityMV.set(lightIntensity) }, [lightIntensity, lightIntensityMV]);
   React.useEffect(() => { specularIntensityMV.set(specularIntensity) }, [specularIntensity, specularIntensityMV]);
+  React.useEffect(() => { dampingMV.set(simDamping) }, [simDamping, dampingMV]);
+  React.useEffect(() => { windMV.set(simWind) }, [simWind, windMV]);
+  React.useEffect(() => { roughnessMV.set(matRoughness) }, [matRoughness, roughnessMV]);
+  React.useEffect(() => { metalnessMV.set(matMetalness) }, [matMetalness, metalnessMV]);
+  React.useEffect(() => { iorMV.set(matIor) }, [matIor, iorMV]);
+  React.useEffect(() => { shininessMV.set(sunShininess) }, [sunShininess, shininessMV]);
+  React.useEffect(() => { interactionMV.set(interactionStrength) }, [interactionStrength, interactionMV]);
+  React.useEffect(() => { waveSpeedMV.set(waveSpeed) }, [waveSpeed, waveSpeedMV]);
+  React.useEffect(() => { bubbleSizeMV.set(bubbleSize) }, [bubbleSize, bubbleSizeMV]);
+  React.useEffect(() => { bubbleOpacityMV.set(bubbleOpacity) }, [bubbleOpacity, bubbleOpacityMV]);
 
   const sectionDivider = <div style={{ borderTop: `1px solid ${theme.Color.Base.Surface[3]}`, margin: `0` }} />;
   const sectionHeader = (label: string) => (
@@ -140,10 +204,86 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         onCommit={onSpecularIntensityCommit}
         min={0} max={10} step={0.1}
       />
+      
+      <RangeSlider
+        label="Sun Shininess"
+        motionValue={shininessMV}
+        onCommit={onSunShininessCommit}
+        min={1} max={1000} step={1}
+      />
 
       {sectionDivider}
       
-      {sectionHeader("Water Surface")}
+      {sectionHeader("Simulation Physics")}
+      
+      <RangeSlider
+        label="Viscosity (Damping)"
+        motionValue={dampingMV}
+        onCommit={onSimDampingCommit}
+        min={0.9} max={0.999} step={0.001}
+      />
+      <RangeSlider
+        label="Wind Strength"
+        motionValue={windMV}
+        onCommit={onSimWindCommit}
+        min={0} max={0.01} step={0.0001}
+      />
+
+      {sectionDivider}
+
+      {sectionHeader("Particles & FX")}
+
+      <RangeSlider
+        label="Interaction Intensity"
+        motionValue={interactionMV}
+        onCommit={onInteractionStrengthCommit}
+        min={0.01} max={0.2} step={0.01}
+      />
+      <RangeSlider
+        label="Wave Speed"
+        motionValue={waveSpeedMV}
+        onCommit={onWaveSpeedCommit}
+        min={0} max={5} step={0.1}
+      />
+      <RangeSlider
+        label="Bubble Size"
+        motionValue={bubbleSizeMV}
+        onCommit={onBubbleSizeCommit}
+        min={0.01} max={0.2} step={0.01}
+      />
+      <RangeSlider
+        label="Bubble Opacity"
+        motionValue={bubbleOpacityMV}
+        onCommit={onBubbleOpacityCommit}
+        min={0} max={1} step={0.01}
+      />
+
+      {sectionDivider}
+
+      {sectionHeader("Material Properties")}
+      
+      <RangeSlider
+        label="Roughness"
+        motionValue={roughnessMV}
+        onCommit={onMatRoughnessCommit}
+        min={0} max={1} step={0.01}
+      />
+      <RangeSlider
+        label="Metalness"
+        motionValue={metalnessMV}
+        onCommit={onMatMetalnessCommit}
+        min={0} max={1} step={0.01}
+      />
+      <RangeSlider
+        label="IOR (Refraction)"
+        motionValue={iorMV}
+        onCommit={onMatIorCommit}
+        min={1.0} max={2.33} step={0.01}
+      />
+      
+      {sectionDivider}
+      
+      {sectionHeader("Water Tint")}
 
       <Toggle
         label="Custom Water Color"
