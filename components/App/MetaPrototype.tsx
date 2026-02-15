@@ -30,14 +30,14 @@ const MetaPrototype = () => {
   const [simulationConfig, setSimulationConfig] = useState({ gravity: true });
   const [lightPosition, setLightPosition] = useState({ x: 2, y: 3, z: -2 }); // XYZ position for light direction
   const [skyPreset, setSkyPreset] = useState('default'); // 'default', 'sunset', etc.
-  const [lightIntensity, setLightIntensity] = useState(2.0);
+  const [lightIntensity, setLightIntensity] = useState(4.9);
   const [specularIntensity, setSpecularIntensity] = useState(0.5);
   const [useCustomWaterColor, setUseCustomWaterColor] = useState(false);
   const [waterColorShallow, setWaterColorShallow] = useState('#aaddff'); // Light cyan
   const [waterColorDeep, setWaterColorDeep] = useState('#005577'); // Dark cyan
 
   // -- Granular Physics State --
-  const [simDamping, setSimDamping] = useState(0.995);
+  const [simDamping, setSimDamping] = useState(0.91);
   const [simWind, setSimWind] = useState(0.0005);
   const [matRoughness, setMatRoughness] = useState(0.1);
   const [matMetalness, setMatMetalness] = useState(0.0);
@@ -47,7 +47,7 @@ const MetaPrototype = () => {
   // -- New FX State --
   const [interactionStrength, setInteractionStrength] = useState(0.03);
   const [waveSpeed, setWaveSpeed] = useState(1.0);
-  const [bubbleSize, setBubbleSize] = useState(0.04);
+  const [bubbleSize, setBubbleSize] = useState(0.02);
   const [bubbleOpacity, setBubbleOpacity] = useState(0.8);
 
   // -- Direct API ref for real-time updates --
@@ -183,6 +183,11 @@ const MetaPrototype = () => {
     logEvent(`Simulation toggled: ${isPaused ? 'On' : 'Off'}`);
   }
 
+  const handleToggleGravity = () => {
+    setSimulationConfig(prev => ({ ...prev, gravity: !prev.gravity }));
+    logEvent(`Gravity toggled: ${!simulationConfig.gravity ? 'On' : 'Off'}`);
+  };
+
   const handleLightPositionChange = (axis: 'x' | 'y' | 'z', value: number) => {
     setLightPosition(prev => ({ ...prev, [axis]: value }));
     logEvent(`Light Position ${axis.toUpperCase()} changed to ${value.toFixed(1)}`);
@@ -257,6 +262,8 @@ const MetaPrototype = () => {
       <Confetti trigger={confettiTrigger} />
 
       <Stage 
+        isPaused={isPaused}
+        gravityEnabled={simulationConfig.gravity}
         lightPosition={lightPosition}
         skyPreset={skyPreset}
         lightIntensity={lightIntensity}
@@ -291,6 +298,8 @@ const MetaPrototype = () => {
             <ControlPanel
               isPaused={isPaused}
               onTogglePause={handleTogglePause}
+              gravity={simulationConfig.gravity}
+              onToggleGravity={handleToggleGravity}
               lightPosition={lightPosition}
               onLightPositionChange={handleLightPositionChange}
               skyPreset={skyPreset}

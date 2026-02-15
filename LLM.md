@@ -33,6 +33,11 @@ Hello! You are an AI assistant helping to build this React application. Here are
 -   `components/Page/Welcome.tsx`
 -   `components/Section/Dock.tsx`
 -   `components/Section/Stage.tsx`
+-   `components/WebGL/WaterEngine.ts`
+-   `components/WebGL/GPGPUWater.ts`
+-   `components/WebGL/CausticsGenerator.ts`
+-   `components/WebGL/shaders.ts`
+-   `components/WebGL/assets.ts`
 -   `README.md`
 -   `LLM.md`
 -   `noteBook.md`

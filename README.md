@@ -34,7 +34,8 @@ Imagine you're building with LEGOs. This project gives you a super organized box
     -   `index.tsx`: Defines what a "Window" or a "Log Entry" looks like.
 -   **`components/`**: The LEGO pieces themselves, organized by complexity!
     -   **`Core/`**: The most basic, single-purpose pieces (Button, Input, Toggle, etc.).
-    -   **`Package/`**: Combines Core pieces into something more useful (`ControlPanel`, `FloatingWindow`, `WebGLWater`).
+    -   **`Package/`**: Combines Core pieces into something more useful (`ControlPanel`, `FloatingWindow`). The `WebGLWater` component lives here but gets its engine from the `WebGL` folder.
+    -   **`WebGL/`**: The highly specialized LEGO Technic pieces for our water simulation engine.
     -   **`Section/`**: A whole section of the app (the `Dock` at the bottom, the main `Stage`).
     -   **`Page/`**: A full screen you see (`Welcome` page).
     -   **`App/`**: The complete, running application (`MetaPrototype`).
@@ -72,9 +73,15 @@ Imagine you're building with LEGOs. This project gives you a super organized box
 │   │   └── WebGLWater.tsx
 │   ├── Page/
 │   │   └── Welcome.tsx
-│   └── Section/
-│       ├── Dock.tsx
-│       └── Stage.tsx
+│   ├── Section/
+│   │   ├── Dock.tsx
+│   │   └── Stage.tsx
+│   └── WebGL/
+│       ├── WaterEngine.ts
+│       ├── GPGPUWater.ts
+│       ├── CausticsGenerator.ts
+│       ├── shaders.ts
+│       └── assets.ts
 ├── hooks/
 │   ├── useBreakpoint.tsx
 │   └── useElementAnatomy.tsx

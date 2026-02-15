@@ -13,6 +13,8 @@ import ColorPicker from '../Core/ColorPicker.tsx';
 interface ControlPanelProps {
   isPaused: boolean;
   onTogglePause: () => void;
+  gravity: boolean;
+  onToggleGravity: () => void;
   lightPosition: { x: number; y: number; z: number };
   onLightPositionChange: (axis: 'x' | 'y' | 'z', value: number) => void;
   skyPreset: string;
@@ -63,6 +65,8 @@ const SKY_PRESETS = [
 const ControlPanel: React.FC<ControlPanelProps> = ({ 
     isPaused, 
     onTogglePause,
+    gravity,
+    onToggleGravity,
     lightPosition,
     onLightPositionChange,
     skyPreset,
@@ -153,6 +157,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         label="Pause Simulation"
         isOn={isPaused}
         onToggle={onTogglePause}
+      />
+      <Toggle
+        label="Sphere Gravity"
+        isOn={gravity}
+        onToggle={onToggleGravity}
       />
       
       {sectionDivider}

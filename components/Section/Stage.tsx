@@ -6,6 +6,8 @@ import React from 'react';
 import WebGLWater from '../Package/WebGLWater.tsx';
 
 interface StageProps {
+  isPaused: boolean;
+  gravityEnabled: boolean;
   lightPosition: { x: number; y: number; z: number };
   skyPreset: string;
   lightIntensity: number;
@@ -29,6 +31,8 @@ interface StageProps {
 }
 
 const Stage = ({ 
+    isPaused,
+    gravityEnabled,
     lightPosition,
     skyPreset, 
     lightIntensity,
@@ -55,6 +59,8 @@ const Stage = ({
         height: '100%',
     }}>
         <WebGLWater 
+            isPaused={isPaused}
+            gravityEnabled={gravityEnabled}
             lightPosition={lightPosition}
             skyPreset={skyPreset}
             lightIntensity={lightIntensity}
