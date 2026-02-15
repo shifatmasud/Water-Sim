@@ -7,6 +7,7 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useTheme } from '../../Theme.tsx';
 import { CausticsGenerator } from './CausticsGenerator.tsx';
 
@@ -120,8 +121,21 @@ const waterVertexShader = `
     v_uv = uv;
     vec4 info = texture2D(u_waterTexture, uv);
     vec3 pos = position;
-    // The plane is in XY, but rotated to be in XZ. The plane's local Z is along the world Y axis.
-    pos.z += info.r;
+
+    // --- Edge Pinning Logic ---
+    // Calculate distance to the nearest edge (0.0 at edge, 0.5 at center)
+    float distToEdgeX = min(v_uv.x, 1.0 - v_uv.x);
+    float distToEdgeY = min(v_uv.y, 1.0 - v_uv.y);
+    float distToEdge = min(distToEdgeX, distToEdgeY);
+
+    // Create a smooth falloff factor from 0.0 at the edge to 1.0 further in.
+    // The falloff happens over the outer 5% of the surface.
+    float falloff = smoothstep(0.0, 0.05, distToEdge);
+
+    // Apply displacement modulated by the falloff factor.
+    // This pins the edges (falloff=0) and allows full waves in the center (falloff=1).
+    pos.y += info.r * falloff;
+    
     v_worldPos = (modelMatrix * vec4(pos, 1.0)).xyz;
     v_reflectionUv = u_textureMatrix * vec4(v_worldPos, 1.0);
     gl_Position = projectionMatrix * viewMatrix * vec4(v_worldPos, 1.0);
@@ -245,10 +259,14 @@ const waterFragmentShader = `
         info = texture2D(u_waterTexture, coord);
     }
 
-    // Normal from simulation texture (in sim space, Y is up)
+    // Normal from simulation texture (Y is up in Sim space)
+    // info.b = slope X, info.a = slope Y (in texture space)
     vec3 simNormal = normalize(vec3(info.b, sqrt(1.0 - dot(info.ba, info.ba)), info.a));
-    // Transform to world space (plane mesh was rotated -90 deg on X)
-    vec3 worldNormal = normalize(vec3(simNormal.x, simNormal.z, -simNormal.y));
+    
+    // Transform to World Space
+    // Geometry is XZ. UVs map U->X, V->-Z.
+    // SimNormal X maps to World X. SimNormal Z maps to World -Z. SimNormal Y (Up) maps to World Y.
+    vec3 worldNormal = normalize(vec3(simNormal.x, simNormal.y, -simNormal.z));
     
     vec3 viewDir = normalize(v_worldPos - u_cameraPos);
     
@@ -482,9 +500,41 @@ const WebGLWater = ({ lightPosition, skyPreset, lightIntensity, specularIntensit
 
     const tilesTexture = createTileTexture();
     
+    // --- MERGED WATER GEOMETRY ---
+    
+    // 1. Surface Geometry (Plane)
+    // We keep the original unrotated plane for CausticsGenerator calculations
     const waterGeo = new THREE.PlaneGeometry(2, 2, 256, 256);
     const causticsGenerator = new CausticsGenerator(waterGeo);
 
+    // Create the actual surface geometry for the mesh, rotated to lie flat
+    const surfaceGeo = waterGeo.clone();
+    surfaceGeo.rotateX(-Math.PI / 2);
+
+    // 2. Volume Geometry (Box)
+    const poolSize = 2;
+    const poolHeight = 1;
+    const inset = 0.002;
+    const volumeGeo = new THREE.BoxGeometry(poolSize - inset * 2, poolHeight - inset, poolSize - inset * 2);
+    // Translate box so its top face is at y=0 (matches surface) and body extends down
+    volumeGeo.translate(0, -poolHeight / 2, 0);
+
+    // 3. Merge and create groups manually
+    const mergedGeo = mergeGeometries([surfaceGeo, volumeGeo]);
+    mergedGeo.clearGroups();
+    const surfaceIndexCount = surfaceGeo.getIndex()!.count;
+    mergedGeo.addGroup(0, surfaceIndexCount, 0); // Material 0: Water Surface
+
+    // Box face order: right, left, top, bottom, front, back. Each face has 6 indices.
+    const boxFaceIndexStart = surfaceIndexCount;
+    mergedGeo.addGroup(boxFaceIndexStart + 0, 6, 1);  // Right
+    mergedGeo.addGroup(boxFaceIndexStart + 6, 6, 1);  // Left
+    mergedGeo.addGroup(boxFaceIndexStart + 12, 6, 2); // Top (Invisible)
+    mergedGeo.addGroup(boxFaceIndexStart + 18, 6, 1); // Bottom
+    mergedGeo.addGroup(boxFaceIndexStart + 24, 6, 1); // Front
+    mergedGeo.addGroup(boxFaceIndexStart + 30, 6, 1); // Back
+
+    // 4. Materials
     const waterMaterial = new THREE.ShaderMaterial({
         uniforms: { 
             u_waterTexture: { value: null }, 
@@ -504,15 +554,42 @@ const WebGLWater = ({ lightPosition, skyPreset, lightIntensity, specularIntensit
         },
         vertexShader: waterVertexShader, 
         fragmentShader: waterFragmentShader,
+        side: THREE.DoubleSide
     });
-    waterMaterial.side = THREE.DoubleSide;
+
+    const waterVolumeMaterial = new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color(waterColorDeep),
+        metalness: 0.0,
+        roughness: 0.1,
+        transmission: 1.0, 
+        thickness: 0.8,
+        ior: 1.333,
+        emissive: new THREE.Color(waterColorDeep).multiplyScalar(0.05),
+        depthWrite: false, 
+    });
+
+    const invisibleTopMat = new THREE.MeshBasicMaterial({ 
+        color: 0xffffff, 
+        transparent: true, 
+        opacity: 0.0, 
+        side: THREE.DoubleSide,
+        depthWrite: false 
+    });
+
+    // Material Array for Merged Geometry
+    const materials = [
+        waterMaterial,        // Index 0
+        waterVolumeMaterial,  // Index 1
+        invisibleTopMat       // Index 2
+    ];
+
+    const waterObj = new THREE.Mesh(mergedGeo, materials);
+    scene.add(waterObj);
 
     const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
     sunLight.position.copy(sunPosition);
     scene.add(sunLight);
 
-    const poolSize = 2;
-    const poolHeight = 1;
     const poolMaterial = new THREE.MeshStandardMaterial({
       map: tilesTexture, envMap: textureCube, roughness: 0.1, metalness: 0.1, side: THREE.BackSide
     });
@@ -524,10 +601,14 @@ const WebGLWater = ({ lightPosition, skyPreset, lightIntensity, specularIntensit
     poolMesh.position.y = -poolHeight / 2;
     scene.add(poolMesh);
 
+    const sphereRadius = 0.25;
+
     poolMaterial.onBeforeCompile = (shader) => {
         shader.uniforms.u_causticsTexture = { value: causticsGenerator.getTexture() };
         shader.uniforms.u_waterTexture = { value: waterSimulation.getTexture() };
         shader.uniforms.u_lightDir = { value: sunPosition };
+        shader.uniforms.u_sphereCenter = { value: new THREE.Vector3() };
+        shader.uniforms.u_sphereRadius = { value: sphereRadius };
         
         shader.vertexShader = `
             varying vec3 v_worldPos;
@@ -544,6 +625,8 @@ const WebGLWater = ({ lightPosition, skyPreset, lightIntensity, specularIntensit
             uniform sampler2D u_causticsTexture;
             uniform sampler2D u_waterTexture;
             uniform vec3 u_lightDir;
+            uniform vec3 u_sphereCenter;
+            uniform float u_sphereRadius;
             varying vec3 v_worldPos;
             const float IOR_AIR = 1.0;
             const float IOR_WATER = 1.333;
@@ -554,9 +637,30 @@ const WebGLWater = ({ lightPosition, skyPreset, lightIntensity, specularIntensit
             `
             #include <dithering_fragment>
             
+            // --- Shadow Logic ---
+            // Calculate vector from point to sphere center
+            vec3 toSphere = u_sphereCenter - v_worldPos;
+            
+            // Project onto light direction to find distance along light ray
+            // u_lightDir points TO light source
+            float t = dot(toSphere, u_lightDir);
+            
+            float shadow = 0.0;
+            if (t > 0.0) {
+                // Point is "behind" sphere relative to light source
+                float distSq = dot(toSphere, toSphere) - t * t;
+                float dist = sqrt(max(0.0, distSq));
+                
+                // Soft shadow with smooth edge
+                shadow = smoothstep(u_sphereRadius * 1.5, u_sphereRadius * 0.5, dist);
+            }
+            
+            // --- Caustics Logic ---
             vec2 waterUv = v_worldPos.xz * 0.5 + 0.5;
             waterUv.y = 1.0 - waterUv.y;
             float waterHeight = texture2D(u_waterTexture, waterUv).r;
+            
+            vec3 causticColor = vec3(0.0);
     
             if (v_worldPos.y < waterHeight) {
                 vec3 refractedLight = refract(-u_lightDir, vec3(0.0, 1.0, 0.0), IOR_AIR / IOR_WATER);
@@ -564,39 +668,19 @@ const WebGLWater = ({ lightPosition, skyPreset, lightIntensity, specularIntensit
                 causticsUv = causticsUv * 0.5 + 0.5;
                 
                 float caustics = texture2D(u_causticsTexture, causticsUv).r;
-                gl_FragColor.rgb += vec3(1.0) * caustics * 0.5;
+                causticColor = vec3(1.0) * caustics * 0.5;
             }
+            
+            // --- Combine ---
+            // Shadow darkens the surface
+            gl_FragColor.rgb *= (1.0 - shadow * 0.5);
+            
+            // Caustics are added, but masked by shadow (no light = no caustics)
+            gl_FragColor.rgb += causticColor * (1.0 - shadow);
             `
         );
         sceneObjects.current.poolShader = shader;
     };
-
-    const inset = 0.002;
-    const waterVolumeGeo = new THREE.BoxGeometry(poolSize - inset * 2, poolHeight - inset, poolSize - inset * 2);
-    const waterVolumeMaterial = new THREE.MeshPhysicalMaterial({
-        color: new THREE.Color(waterColorDeep), // Placeholder, updated in useEffect
-        metalness: 0.0,
-        roughness: 0.1,
-        transmission: 1.0, // Fully transparent
-        thickness: 0.8,    // Thinner volume for more clarity
-        ior: 1.333,        // Index of Refraction for water
-        emissive: new THREE.Color(waterColorDeep).multiplyScalar(0.05), // A very subtle glow from within
-        depthWrite: false, // Make bubbles visible through volume
-    });
-    const waterVolumeMesh = new THREE.Mesh(waterVolumeGeo, [
-        waterVolumeMaterial, // right
-        waterVolumeMaterial, // left
-        new THREE.MeshBasicMaterial({transparent: true, opacity: 0.0, side: THREE.DoubleSide}), // top
-        waterVolumeMaterial, // bottom
-        waterVolumeMaterial, // front
-        waterVolumeMaterial, // back
-    ]);
-    waterVolumeMesh.position.y = -poolHeight / 2;
-    scene.add(waterVolumeMesh);
-
-    const waterMesh = new THREE.Mesh(waterGeo, waterMaterial);
-    waterMesh.rotation.x = -Math.PI / 2;
-    scene.add(waterMesh);
     
     // --- Bubble Particle System ---
     const bubbleCount = 200;
@@ -635,7 +719,6 @@ const WebGLWater = ({ lightPosition, skyPreset, lightIntensity, specularIntensit
     const bubbleParticles = new THREE.Points(bubbleParticlesGeo, bubbleMaterial);
     scene.add(bubbleParticles);
 
-    const sphereRadius = 0.25;
     const sphereMaterial = new THREE.MeshStandardMaterial({ 
       color: 0xffffff, envMap: textureCube, roughness: 0.05, metalness: 0.95 
     });
@@ -800,9 +883,9 @@ const WebGLWater = ({ lightPosition, skyPreset, lightIntensity, specularIntensit
     window.addEventListener('pointerup', onPointerUpImpl);
 
     const updateReflector = () => {
-        reflectorWorldPosition.setFromMatrixPosition(waterMesh.matrixWorld);
+        reflectorWorldPosition.setFromMatrixPosition(waterObj.matrixWorld);
         cameraWorldPosition.setFromMatrixPosition(camera.matrixWorld);
-        rotationMatrix.extractRotation(waterMesh.matrixWorld);
+        rotationMatrix.extractRotation(waterObj.matrixWorld);
         const normal = new THREE.Vector3(0, 1, 0);
         normal.applyMatrix4(rotationMatrix);
         view.subVectors(reflectorWorldPosition, cameraWorldPosition);
@@ -882,14 +965,14 @@ const WebGLWater = ({ lightPosition, skyPreset, lightIntensity, specularIntensit
       if (poolShader) {
         poolShader.uniforms.u_lightDir.value.copy(sunPosition);
         poolShader.uniforms.u_waterTexture.value = waterTexture;
+        poolShader.uniforms.u_sphereCenter.value.copy(sphere.position);
       }
       if (sphereShader) {
         sphereShader.uniforms.u_lightDir.value.copy(sunPosition);
         sphereShader.uniforms.u_waterTexture.value = waterTexture;
       }
       
-      waterMesh.visible = false;
-      waterVolumeMesh.visible = false;
+      waterObj.visible = false;
       bubbleParticles.visible = false;
       poolMaterial.side = THREE.FrontSide;
       updateReflector();
@@ -899,8 +982,7 @@ const WebGLWater = ({ lightPosition, skyPreset, lightIntensity, specularIntensit
       renderer.setRenderTarget(null);
       renderer.clippingPlanes = [];
       poolMaterial.side = THREE.BackSide;
-      waterMesh.visible = true;
-      waterVolumeMesh.visible = true;
+      waterObj.visible = true;
       bubbleParticles.visible = true;
 
       waterMaterial.uniforms.u_waterTexture.value = waterTexture;
@@ -909,7 +991,7 @@ const WebGLWater = ({ lightPosition, skyPreset, lightIntensity, specularIntensit
       renderer.render(scene, camera);
     };
     
-    sceneObjects.current = { scene, sky, sunPosition, waterMaterial, sunLight, cubeCamera, renderer, skyScene, waterVolumeMesh, waterVolumeMaterial, bubbles, bubbleParticles, causticsGenerator };
+    sceneObjects.current = { scene, sky, sunPosition, waterMaterial, sunLight, cubeCamera, renderer, skyScene, waterVolumeMaterial, bubbles, bubbleParticles, causticsGenerator, waterObj };
 
     if (sceneApiRef) {
         sceneApiRef.current = {
