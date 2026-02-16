@@ -441,7 +441,7 @@ export class WaterEngine {
             // Apply Gravity
             this.sphereVelocity.y += GRAVITY;
 
-            // Calculate Submerged Ratio
+            // Calculate Submerged Ratio based on position BEFORE integration
             const r = this.sphereRadius;
             const y = this.sphere.position.y;
             let submergedRatio = 0;
@@ -466,6 +466,24 @@ export class WaterEngine {
 
             // Integrate
             this.sphere.position.add(this.sphereVelocity);
+
+            // --- SPLASH LOGIC ---
+            // Check if it WAS out of the water (submergedRatio was 0) and is NOW in the water.
+            const newY = this.sphere.position.y;
+            if (submergedRatio === 0 && newY <= r) {
+                const impactVelocity = Math.abs(this.sphereVelocity.y);
+                if (impactVelocity > 0.02) { // Threshold to avoid splashes when just bobbing
+                    const splashStrength = Math.min(0.25, impactVelocity * 1.5);
+                    const splashRadius = Math.min(0.1, 0.03 + impactVelocity * 0.3);
+                    
+                    const uv = new THREE.Vector2(
+                        this.sphere.position.x / this.poolSize + 0.5,
+                        0.5 - this.sphere.position.z / this.poolSize
+                    );
+                    // A splash creates a cavity, so add negative height.
+                    this.waterSim.addDrop(uv.x, uv.y, splashRadius, -splashStrength);
+                }
+            }
 
             // Floor Collision
             const floorY = -this.poolHeight + this.sphereRadius;
