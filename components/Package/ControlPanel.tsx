@@ -2,13 +2,15 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import React from 'react';
-import { useMotionValue } from 'framer-motion';
+import React, { useRef } from 'react';
+import { useMotionValue, motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../../Theme.tsx';
 import Toggle from '../Core/Toggle.tsx';
 import RangeSlider from '../Core/RangeSlider.tsx';
 import Select from '../Core/Select.tsx';
 import ColorPicker from '../Core/ColorPicker.tsx';
+import Input from '../Core/Input.tsx';
+import Button from '../Core/Button.tsx';
 
 interface ControlPanelProps {
   isPaused: boolean;
@@ -19,6 +21,12 @@ interface ControlPanelProps {
   onLightPositionChange: (axis: 'x' | 'y' | 'z', value: number) => void;
   skyPreset: string;
   onSkyPresetChange: (e: any) => void;
+  useCustomHDR: boolean;
+  onToggleCustomHDR: () => void;
+  customHDRUrl: string;
+  onCustomHDRUrlChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onLoadCustomHDR: () => void;
+  onCustomHDRFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   lightIntensity: number;
   onLightIntensityUpdate: (value: number) => void;
   onLightIntensityCommit: (value: number) => void;
@@ -71,6 +79,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     onLightPositionChange,
     skyPreset,
     onSkyPresetChange,
+    useCustomHDR,
+    onToggleCustomHDR,
+    customHDRUrl,
+    onCustomHDRUrlChange,
+    onLoadCustomHDR,
+    onCustomHDRFileChange,
     lightIntensity,
     onLightIntensityUpdate,
     onLightIntensityCommit,
@@ -105,6 +119,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     onBubbleOpacityCommit,
 }) => {
   const { theme } = useTheme();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const lightX_MV = useMotionValue(lightPosition.x);
   const lightY_MV = useMotionValue(lightPosition.y);
@@ -168,12 +183,59 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
       {sectionHeader("Environment")}
 
-      <Select
-        label="Sky Preset"
-        value={skyPreset}
-        onChange={onSkyPresetChange}
-        options={SKY_PRESETS}
+      <Toggle
+        label="Use Custom HDR"
+        isOn={useCustomHDR}
+        onToggle={onToggleCustomHDR}
       />
+
+      <AnimatePresence>
+        {useCustomHDR && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: theme.spacing['Space.M'], marginTop: theme.spacing['Space.M'] }}
+          >
+            <Input
+              label="HDR File URL"
+              value={customHDRUrl}
+              onChange={onCustomHDRUrlChange}
+            />
+            <div style={{ display: 'flex', gap: theme.spacing['Space.S']}}>
+              <Button
+                label="Load from URL"
+                onClick={onLoadCustomHDR}
+                size="S"
+                variant="secondary"
+              />
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                accept=".hdr"
+                onChange={onCustomHDRFileChange}
+              />
+              <Button
+                label="Upload File..."
+                onClick={() => fileInputRef.current?.click()}
+                size="S"
+                variant="outline"
+                icon="ph-upload-simple"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div style={{ opacity: useCustomHDR ? 0.5 : 1, pointerEvents: useCustomHDR ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
+        <Select
+            label="Sky Preset"
+            value={skyPreset}
+            onChange={onSkyPresetChange}
+            options={SKY_PRESETS}
+        />
+      </div>
       
       {sectionDivider}
       

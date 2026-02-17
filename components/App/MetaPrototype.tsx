@@ -30,6 +30,8 @@ const MetaPrototype = () => {
   const [simulationConfig, setSimulationConfig] = useState({ gravity: true });
   const [lightPosition, setLightPosition] = useState({ x: 2, y: 3, z: -2 }); // XYZ position for light direction
   const [skyPreset, setSkyPreset] = useState('default'); // 'default', 'sunset', etc.
+  const [useCustomHDR, setUseCustomHDR] = useState(false); // New HDR toggle
+  const [customHDRUrl, setCustomHDRUrl] = useState('https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/qwantani_morning_puresky_1k.hdr');
   const [lightIntensity, setLightIntensity] = useState(4.9);
   const [specularIntensity, setSpecularIntensity] = useState(0.5);
   const [useCustomWaterColor, setUseCustomWaterColor] = useState(false);
@@ -61,6 +63,7 @@ const MetaPrototype = () => {
     setInteractionStrength?: (v: number) => void;
     setWaveSpeed?: (v: number) => void;
     setBubbleConfig?: (size: number, opacity: number) => void;
+    loadCustomHDR?: (url: string) => void; // New API method
   } | null>(null);
 
   // -- Confetti State --
@@ -93,7 +96,9 @@ const MetaPrototype = () => {
       setCodeText(JSON.stringify({ 
           isPaused, 
           lightPosition, 
-          skyPreset, 
+          skyPreset,
+          useCustomHDR,
+          customHDRUrl: useCustomHDR ? customHDRUrl : undefined,
           lightIntensity, 
           specularIntensity, 
           useCustomWaterColor, 
@@ -112,7 +117,7 @@ const MetaPrototype = () => {
           ...simulationConfig 
       }, null, 2));
     }
-  }, [isPaused, lightPosition, skyPreset, lightIntensity, specularIntensity, useCustomWaterColor, waterColorShallow, waterColorDeep, simulationConfig, isCodeFocused, simDamping, simWind, matRoughness, matMetalness, matIor, sunShininess, interactionStrength, waveSpeed, bubbleSize, bubbleOpacity]);
+  }, [isPaused, lightPosition, skyPreset, useCustomHDR, customHDRUrl, lightIntensity, specularIntensity, useCustomWaterColor, waterColorShallow, waterColorDeep, simulationConfig, isCodeFocused, simDamping, simWind, matRoughness, matMetalness, matIor, sunShininess, interactionStrength, waveSpeed, bubbleSize, bubbleOpacity]);
 
 
   // -- Actions --
@@ -132,18 +137,11 @@ const MetaPrototype = () => {
 
   // Sync sky preset with theme changes
   useEffect(() => {
-    // On initial mount, sync theme to skybox without logging
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      if (themeName === 'dark') {
-        setSkyPreset('night');
-      } else {
-        setSkyPreset('default');
-      }
+      if (themeName === 'dark') setSkyPreset('night'); else setSkyPreset('default');
       return;
     }
-
-    // On subsequent theme changes, update skybox and log
     if (themeName === 'dark') {
       setSkyPreset('night');
       logEvent('Theme changed to Dark. Sky preset set to Night.');
@@ -199,13 +197,46 @@ const MetaPrototype = () => {
     logEvent(`Sky preset changed to: ${newPreset}`);
   };
 
+  const handleToggleCustomHDR = () => {
+    setUseCustomHDR(prev => !prev);
+    logEvent(`Custom HDR toggled: ${!useCustomHDR ? 'On' : 'Off'}`);
+  };
+
+  const handleLoadCustomHDR = () => {
+    if (!customHDRUrl) {
+        logEvent('Error: HDR URL is empty.');
+        return;
+    }
+    logEvent(`Loading custom HDR from URL: ${customHDRUrl}`);
+    sceneApiRef.current?.loadCustomHDR?.(customHDRUrl);
+  };
+
+  const handleCustomHDRFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.name.toLowerCase().endsWith('.hdr')) {
+          logEvent(`Error: Invalid file type. Please select a .hdr file.`);
+          return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        if (dataUrl) {
+          logEvent(`Loading custom HDR from file: ${file.name}`);
+          sceneApiRef.current?.loadCustomHDR?.(dataUrl);
+        }
+      };
+      reader.onerror = () => {
+        logEvent(`Error reading file: ${file.name}`);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+
   // --- Real-time updates (no re-render) ---
-  const handleLightIntensityUpdate = (value: number) => {
-    sceneApiRef.current?.setLightIntensity?.(value);
-  };
-  const handleSpecularIntensityUpdate = (value: number) => {
-    sceneApiRef.current?.setSpecularIntensity?.(value);
-  };
+  const handleLightIntensityUpdate = (value: number) => sceneApiRef.current?.setLightIntensity?.(value);
+  const handleSpecularIntensityUpdate = (value: number) => sceneApiRef.current?.setSpecularIntensity?.(value);
 
   // --- State updates on commit (re-renders for UI sync) ---
   const handleLightIntensityCommit = (value: number) => {
@@ -266,6 +297,7 @@ const MetaPrototype = () => {
         gravityEnabled={simulationConfig.gravity}
         lightPosition={lightPosition}
         skyPreset={skyPreset}
+        useCustomHDR={useCustomHDR}
         lightIntensity={lightIntensity}
         specularIntensity={specularIntensity}
         useCustomWaterColor={useCustomWaterColor}
@@ -304,6 +336,12 @@ const MetaPrototype = () => {
               onLightPositionChange={handleLightPositionChange}
               skyPreset={skyPreset}
               onSkyPresetChange={handleSkyPresetChange}
+              useCustomHDR={useCustomHDR}
+              onToggleCustomHDR={handleToggleCustomHDR}
+              customHDRUrl={customHDRUrl}
+              onCustomHDRUrlChange={(e) => setCustomHDRUrl(e.target.value)}
+              onLoadCustomHDR={handleLoadCustomHDR}
+              onCustomHDRFileChange={handleCustomHDRFileChange}
               lightIntensity={lightIntensity}
               onLightIntensityUpdate={handleLightIntensityUpdate}
               onLightIntensityCommit={handleLightIntensityCommit}

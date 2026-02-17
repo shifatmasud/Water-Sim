@@ -10,6 +10,7 @@ interface StageProps {
   gravityEnabled: boolean;
   lightPosition: { x: number; y: number; z: number };
   skyPreset: string;
+  useCustomHDR: boolean;
   lightIntensity: number;
   specularIntensity: number;
   useCustomWaterColor: boolean;
@@ -34,7 +35,8 @@ const Stage = ({
     isPaused,
     gravityEnabled,
     lightPosition,
-    skyPreset, 
+    skyPreset,
+    useCustomHDR,
     lightIntensity,
     specularIntensity,
     useCustomWaterColor,
@@ -63,6 +65,7 @@ const Stage = ({
             gravityEnabled={gravityEnabled}
             lightPosition={lightPosition}
             skyPreset={skyPreset}
+            useCustomHDR={useCustomHDR}
             lightIntensity={lightIntensity}
             specularIntensity={specularIntensity}
             useCustomWaterColor={useCustomWaterColor}

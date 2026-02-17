@@ -5,12 +5,20 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 import { GPGPUWater } from './GPGPUWater.ts';
 import { CausticsGenerator } from './CausticsGenerator.ts';
 import { createTileTexture, createBubbleTexture, SKY_PRESETS } from './assets.ts';
 import { waterVertexShader, waterFragmentShader } from './shaders.ts';
+
+// Local definition for the Shader object passed in onBeforeCompile
+interface Shader {
+  uniforms: { [uniform: string]: THREE.IUniform };
+  vertexShader: string;
+  fragmentShader: string;
+}
 
 export class WaterEngine {
     container: HTMLElement;
@@ -41,9 +49,9 @@ export class WaterEngine {
     sphereMaterial: THREE.MeshStandardMaterial;
     
     // Shader Refs (injected via onBeforeCompile)
-    poolShader: THREE.Shader | null = null;
-    sphereShader: THREE.Shader | null = null;
-    waterVolumeShader: THREE.Shader | null = null;
+    poolShader: Shader | null = null;
+    sphereShader: Shader | null = null;
+    waterVolumeShader: Shader | null = null;
 
     // Interaction State
     raycaster = new THREE.Raycaster();
@@ -67,6 +75,11 @@ export class WaterEngine {
     waveSpeed = 1.0;
     accumulatedWaveTime = 0;
     
+    // HDR
+    hdrLoader = new HDRLoader();
+    hdrTexture: THREE.DataTexture | null = null;
+    useCustomHDR = false;
+    
     animFrameId = 0;
     resizeObserver: ResizeObserver;
 
@@ -81,6 +94,8 @@ export class WaterEngine {
         this.renderer.setPixelRatio(1);
         this.renderer.localClippingEnabled = true;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 0.5;
         container.appendChild(this.renderer.domElement);
 
         // Scene & Camera
@@ -169,7 +184,7 @@ export class WaterEngine {
             emissive: new THREE.Color('#005577').multiplyScalar(0.05), depthWrite: false
         });
         
-        this.waterVolumeMaterial.onBeforeCompile = (shader) => {
+        this.waterVolumeMaterial.onBeforeCompile = (shader: any) => {
             shader.uniforms.u_lightDir = { value: this.sunLight.position };
             shader.uniforms.u_cameraPos = { value: this.camera.position };
             shader.uniforms.u_fogColor = { value: this.scene.fog!.color };
@@ -190,7 +205,7 @@ export class WaterEngine {
                  gl_FragColor.rgb += volumetricColor;
                 `
             );
-            this.waterVolumeShader = shader;
+            this.waterVolumeShader = shader as Shader;
         };
 
 
@@ -260,7 +275,7 @@ export class WaterEngine {
     }
 
     private setupPoolShader() {
-        this.poolMaterial.onBeforeCompile = (shader) => {
+        this.poolMaterial.onBeforeCompile = (shader: any) => {
             shader.uniforms.u_causticsTexture = { value: this.caustics.getTexture() };
             shader.uniforms.u_waterTexture = { value: this.waterSim.getTexture() };
             shader.uniforms.u_lightDir = { value: this.sunLight.position };
@@ -269,19 +284,19 @@ export class WaterEngine {
             shader.uniforms.u_waterIor = { value: 1.333 };
             shader.vertexShader = `varying vec3 v_worldPos;\n` + shader.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>\nv_worldPos = (modelMatrix * vec4(position, 1.0)).xyz;`);
             shader.fragmentShader = `uniform sampler2D u_causticsTexture; uniform sampler2D u_waterTexture; uniform vec3 u_lightDir; uniform vec3 u_sphereCenter; uniform float u_sphereRadius; uniform float u_waterIor; varying vec3 v_worldPos; const float IOR_AIR = 1.0;\n` + shader.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>\nvec3 toSphere = u_sphereCenter - v_worldPos; float t = dot(toSphere, u_lightDir); float shadow = 0.0; if (t > 0.0) { float distSq = dot(toSphere, toSphere) - t * t; float dist = sqrt(max(0.0, distSq)); shadow = smoothstep(u_sphereRadius * 1.5, u_sphereRadius * 0.5, dist); } vec2 waterUv = v_worldPos.xz * 0.5 + 0.5; waterUv.y = 1.0 - waterUv.y; float waterHeight = texture2D(u_waterTexture, waterUv).r; vec3 causticColor = vec3(0.0); if (v_worldPos.y < waterHeight) { vec3 refractedLight = refract(-u_lightDir, vec3(0.0, 1.0, 0.0), IOR_AIR / u_waterIor); vec2 causticsUv = v_worldPos.xz - v_worldPos.y * refractedLight.xz / refractedLight.y; causticsUv = causticsUv * 0.5 + 0.5; float caustics = texture2D(u_causticsTexture, causticsUv).r; causticColor = vec3(1.0) * caustics * 0.5; } gl_FragColor.rgb *= (1.0 - shadow * 0.5); gl_FragColor.rgb += causticColor * (1.0 - shadow);`);
-            this.poolShader = shader;
+            this.poolShader = shader as Shader;
         };
     }
 
     private setupSphereShader() {
-        this.sphereMaterial.onBeforeCompile = (shader) => {
+        this.sphereMaterial.onBeforeCompile = (shader: any) => {
             shader.uniforms.u_causticsTexture = { value: this.caustics.getTexture() };
             shader.uniforms.u_waterTexture = { value: this.waterSim.getTexture() };
             shader.uniforms.u_lightDir = { value: this.sunLight.position };
             shader.uniforms.u_waterIor = { value: 1.333 };
             shader.vertexShader = `varying vec3 v_worldPos;\n` + shader.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>\nv_worldPos = (modelMatrix * vec4(position, 1.0)).xyz;`);
             shader.fragmentShader = `uniform sampler2D u_causticsTexture; uniform sampler2D u_waterTexture; uniform vec3 u_lightDir; uniform float u_waterIor; varying vec3 v_worldPos; const float IOR_AIR = 1.0;\n` + shader.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>\nvec2 waterUv = v_worldPos.xz * 0.5 + 0.5; waterUv.y = 1.0 - waterUv.y; float waterHeight = texture2D(u_waterTexture, waterUv).r; if (v_worldPos.y < waterHeight) { vec3 refractedLight = refract(-u_lightDir, vec3(0.0, 1.0, 0.0), IOR_AIR / u_waterIor); vec2 causticsUv = v_worldPos.xz - v_worldPos.y * refractedLight.xz / refractedLight.y; causticsUv = causticsUv * 0.5 + 0.5; float caustics = texture2D(u_causticsTexture, causticsUv).r; gl_FragColor.rgb += vec3(1.0) * caustics * 0.5; }`);
-            this.sphereShader = shader;
+            this.sphereShader = shader as Shader;
         };
     }
 
@@ -376,9 +391,44 @@ export class WaterEngine {
         this.sky.material.uniforms['mieDirectionalG'].value = p.mieDirectionalG;
         if(presetKey === 'night') this.sunLight.color.set(0x88aaff);
         else this.sunLight.color.set(0xffffff);
-        this.cubeCamera.update(this.renderer, this.skyScene);
+        
+        if(!this.useCustomHDR) {
+           this.cubeCamera.update(this.renderer, this.skyScene);
+        }
+        
         this.waterMaterial.uniforms.u_lightColor.value.copy(this.sunLight.color);
     }
+    
+    setCustomHDR(enabled: boolean) {
+        this.useCustomHDR = enabled;
+        if (enabled && this.hdrTexture) {
+            this.skyScene.background = this.hdrTexture;
+            this.sky.visible = false;
+        } else {
+            this.skyScene.background = null;
+            this.sky.visible = true;
+        }
+        this.cubeCamera.update(this.renderer, this.skyScene);
+        this.scene.background = this.cubeCamera.renderTarget.texture;
+    }
+
+    loadCustomHDR(url: string) {
+        this.hdrLoader.load(url, (texture) => {
+            texture.mapping = THREE.EquirectangularReflectionMapping;
+            if (this.hdrTexture) {
+                this.hdrTexture.dispose(); // Dispose of the old texture
+            }
+            this.hdrTexture = texture;
+            
+            // If custom HDR mode is already active, apply the new texture immediately.
+            if (this.useCustomHDR) {
+                this.setCustomHDR(true);
+            }
+        }, undefined, (err) => {
+            console.error('An error occurred loading the HDR file.', err);
+        });
+    }
+
     setLightIntensity(v: number) { this.sunLight.intensity = v; }
     setSpecularIntensity(v: number) { this.waterMaterial.uniforms.u_specularIntensity.value = v; }
     setDamping(v: number) { this.waterSim.setDamping(v); }
@@ -432,69 +482,46 @@ export class WaterEngine {
         
         // Sphere physics
         if (!this.isDraggingSphere && this.gravityEnabled) {
-            // Constants adjusted for "Intense fall, gentle float"
             const GRAVITY = -0.012; 
             const BUOYANCY_MAX = 0.024;
             const DRAG_AIR = 0.995;
             const DRAG_WATER = 0.90;
 
-            // Apply Gravity
             this.sphereVelocity.y += GRAVITY;
 
-            // Calculate Submerged Ratio based on position BEFORE integration
             const r = this.sphereRadius;
             const y = this.sphere.position.y;
             let submergedRatio = 0;
 
-            if (y > r) {
-                submergedRatio = 0;
-            } else if (y < -r) {
-                submergedRatio = 1;
-            } else {
-                submergedRatio = (r - y) / (2 * r);
-                submergedRatio = THREE.MathUtils.clamp(submergedRatio, 0, 1);
-            }
+            if (y > r) submergedRatio = 0;
+            else if (y < -r) submergedRatio = 1;
+            else submergedRatio = THREE.MathUtils.clamp((r - y) / (2 * r), 0, 1);
 
-            // Apply Buoyancy
-            if (submergedRatio > 0) {
-                this.sphereVelocity.y += BUOYANCY_MAX * submergedRatio;
-            }
+            if (submergedRatio > 0) this.sphereVelocity.y += BUOYANCY_MAX * submergedRatio;
 
-            // Apply Drag
             const drag = THREE.MathUtils.lerp(DRAG_AIR, DRAG_WATER, submergedRatio);
             this.sphereVelocity.multiplyScalar(drag);
 
-            // Integrate
             this.sphere.position.add(this.sphereVelocity);
 
-            // --- SPLASH LOGIC ---
-            // Check if it WAS out of the water (submergedRatio was 0) and is NOW in the water.
             const newY = this.sphere.position.y;
             if (submergedRatio === 0 && newY <= r) {
                 const impactVelocity = Math.abs(this.sphereVelocity.y);
-                if (impactVelocity > 0.02) { // Threshold to avoid splashes when just bobbing
+                if (impactVelocity > 0.02) {
                     const splashStrength = Math.min(0.25, impactVelocity * 1.5);
                     const splashRadius = Math.min(0.1, 0.03 + impactVelocity * 0.3);
-                    
-                    const uv = new THREE.Vector2(
-                        this.sphere.position.x / this.poolSize + 0.5,
-                        0.5 - this.sphere.position.z / this.poolSize
-                    );
-                    // A splash creates a cavity, so add negative height.
+                    const uv = new THREE.Vector2(this.sphere.position.x / this.poolSize + 0.5, 0.5 - this.sphere.position.z / this.poolSize);
                     this.waterSim.addDrop(uv.x, uv.y, splashRadius, -splashStrength);
                 }
             }
 
-            // Floor Collision
             const floorY = -this.poolHeight + this.sphereRadius;
             if (this.sphere.position.y < floorY) {
                 this.sphere.position.y = floorY;
-                if (this.sphereVelocity.y < 0) {
-                    this.sphereVelocity.y *= -0.3; // Dampened floor bounce
-                }
+                if (this.sphereVelocity.y < 0) this.sphereVelocity.y *= -0.3;
             }
         } else if (this.isDraggingSphere) {
-            this.sphereVelocity.set(0, 0, 0); // Reset velocity when grabbed
+            this.sphereVelocity.set(0, 0, 0);
         }
 
         // Wind & Simulation

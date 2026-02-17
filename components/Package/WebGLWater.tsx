@@ -12,6 +12,7 @@ interface WebGLWaterProps {
   gravityEnabled: boolean;
   lightPosition: { x: number; y: number; z: number };
   skyPreset: string;
+  useCustomHDR: boolean;
   lightIntensity: number;
   specularIntensity: number;
   useCustomWaterColor: boolean;
@@ -49,7 +50,6 @@ const WebGLWater = (props: WebGLWaterProps) => {
         props.sceneApiRef.current = {
             setLightIntensity: (v: number) => engine.setLightIntensity(v),
             setSpecularIntensity: (v: number) => engine.setSpecularIntensity(v),
-            // Expose new setters for direct API access if needed
             setDamping: (v: number) => engine.setDamping(v),
             setWindStrength: (v: number) => engine.setWindStrength(v),
             setPhysicalConfig: (r: number, m: number, ior: number) => engine.setPhysicalConfig(r, m, ior),
@@ -57,6 +57,7 @@ const WebGLWater = (props: WebGLWaterProps) => {
             setInteractionStrength: (v: number) => engine.setInteractionStrength(v),
             setWaveSpeed: (v: number) => engine.setWaveSpeed(v),
             setBubbleConfig: (size: number, opacity: number) => engine.setBubbleConfig(size, opacity),
+            loadCustomHDR: (url: string) => engine.loadCustomHDR(url),
         };
     }
 
@@ -71,6 +72,7 @@ const WebGLWater = (props: WebGLWaterProps) => {
   useEffect(() => { engineRef.current?.setGravity(props.gravityEnabled); }, [props.gravityEnabled]);
   useEffect(() => { engineRef.current?.setLightPosition(props.lightPosition); }, [props.lightPosition]);
   useEffect(() => { engineRef.current?.setSkyPreset(props.skyPreset); }, [props.skyPreset]);
+  useEffect(() => { engineRef.current?.setCustomHDR(props.useCustomHDR); }, [props.useCustomHDR]);
   useEffect(() => { engineRef.current?.setLightIntensity(props.lightIntensity); }, [props.lightIntensity]);
   useEffect(() => { engineRef.current?.setSpecularIntensity(props.specularIntensity); }, [props.specularIntensity]);
   useEffect(() => { 

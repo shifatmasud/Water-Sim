@@ -113,7 +113,8 @@ export class CausticsGenerator {
             },
             vertexShader: causticsVertexShader,
             fragmentShader: causticsFragmentShader,
-            extensions: { derivatives: true }
+            // extensions: { derivatives: true } is no longer needed/supported in type definition
+            // as it is enabled by default in WebGL2 contexts or handled internally
         });
 
         this.mesh = new THREE.Mesh(waterGeometry, this.material);
