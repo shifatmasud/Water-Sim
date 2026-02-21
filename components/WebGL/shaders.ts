@@ -295,3 +295,34 @@ export const waterFragmentShader = `
     gl_FragColor = vec4(finalColor, 1.0);
   }
 `;
+
+export const bubbleVertexShader = `
+  uniform sampler2D u_waterTexture;
+  uniform float u_poolSize;
+  uniform float u_pointSize;
+  varying float v_opacity;
+  
+  void main() {
+    vec2 waterUv = position.xz / u_poolSize + 0.5;
+    waterUv.y = 1.0 - waterUv.y;
+    float waterHeight = texture2D(u_waterTexture, waterUv).r;
+    
+    // Decay near surface: 1.0 at bottom, fades to 0.0 at surface
+    v_opacity = smoothstep(waterHeight + 0.02, waterHeight - 0.08, position.y);
+    
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    gl_PointSize = u_pointSize * (300.0 / -mvPosition.z);
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+
+export const bubbleFragmentShader = `
+  uniform sampler2D u_texture;
+  uniform float u_baseOpacity;
+  varying float v_opacity;
+  
+  void main() {
+    vec4 tex = texture2D(u_texture, gl_PointCoord);
+    gl_FragColor = tex * v_opacity * u_baseOpacity;
+  }
+`;

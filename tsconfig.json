@@ -25,5 +25,10 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "importmap.js",
+    "node_modules",
+    "dist"
+  ]
 }

@@ -16,7 +16,10 @@ export class GPGPUWater {
     private normalMat: THREE.ShaderMaterial;
     private sphereMat: THREE.ShaderMaterial;
 
+    public size: number;
+
     constructor(renderer: THREE.WebGLRenderer, size = 128) {
+        this.size = size;
         this.renderer = renderer;
         this.scene = new THREE.Scene();
         this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -95,6 +98,11 @@ export class GPGPUWater {
     }
 
     getTexture() { return this.targets.read.texture; }
+
+    readPixels(buffer: Float32Array) {
+        this.renderer.readRenderTargetPixels(this.targets.read, 0, 0, this.size, this.size, buffer);
+    }
+
     dispose() {
         this.targets.read.dispose();
         this.targets.write.dispose();

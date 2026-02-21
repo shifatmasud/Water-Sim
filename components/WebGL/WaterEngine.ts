@@ -69,7 +69,7 @@ export class WaterEngine {
     sphereVelocity = new THREE.Vector3();
     poolSize = 2.0;
     poolHeight = 1.0;
-    bubblesData: Array<{ position: THREE.Vector3, velocity: number, wobbleSpeed: number, wobbleOffset: number }> = [];
+    bubblesData: Array<{ position: THREE.Vector3, velocity: THREE.Vector3, upwardSpeed: number, wobbleSpeed: number, wobbleOffset: number }> = [];
     windStrength = 0.0005;
     interactionStrength = 0.03;
     waveSpeed = 1.0;
@@ -251,7 +251,13 @@ export class WaterEngine {
             const x = (Math.random()-0.5)*(this.poolSize-0.1);
             const y = -this.poolHeight + Math.random()*this.poolHeight;
             const z = (Math.random()-0.5)*(this.poolSize-0.1);
-            this.bubblesData.push({ position: new THREE.Vector3(x,y,z), velocity: 0.002+Math.random()*0.003, wobbleSpeed: Math.random()*0.5+0.5, wobbleOffset: Math.random()*Math.PI*2 });
+            this.bubblesData.push({ 
+                position: new THREE.Vector3(x,y,z), 
+                velocity: new THREE.Vector3(0, 0, 0),
+                upwardSpeed: 0.002+Math.random()*0.003, 
+                wobbleSpeed: Math.random()*0.5+0.5, 
+                wobbleOffset: Math.random()*Math.PI*2 
+            });
             bubblePos[i*3] = x; bubblePos[i*3+1] = y; bubblePos[i*3+2] = z;
         }
         bubbleGeo.setAttribute('position', new THREE.BufferAttribute(bubblePos, 3));
@@ -560,14 +566,59 @@ export class WaterEngine {
 
         // Bubbles
         const posAttr = this.bubbleParticles.geometry.attributes.position as THREE.BufferAttribute;
+        const ray = this.raycaster.ray;
+        const closestPointOnRay = new THREE.Vector3();
+        
         this.bubblesData.forEach((b, i) => {
-            b.position.y += b.velocity;
+            // Apply upward buoyancy
+            b.position.y += b.upwardSpeed;
+            
+            // Apply physics velocity
+            b.position.add(b.velocity);
+            
+            // Damping for physics velocity
+            b.velocity.multiplyScalar(0.96);
+            
+            // Wobble effect (natural movement)
             b.position.x += Math.sin(time * b.wobbleSpeed + b.wobbleOffset) * 0.001;
+            b.position.z += Math.cos(time * b.wobbleSpeed + b.wobbleOffset) * 0.001;
+
+            // Interaction with Sphere
+            const distToSphere = b.position.distanceTo(this.sphere.position);
+            if (distToSphere < this.sphereRadius + 0.15) {
+                const force = b.position.clone().sub(this.sphere.position).normalize();
+                const strength = (1.0 - distToSphere / (this.sphereRadius + 0.15)) * 0.015;
+                b.velocity.add(force.multiplyScalar(strength));
+            }
+
+            // Interaction with Mouse Ray
+            ray.closestPointToPoint(b.position, closestPointOnRay);
+            const distToRay = b.position.distanceTo(closestPointOnRay);
+            if (distToRay < 0.25) {
+                const pushForce = b.position.clone().sub(closestPointOnRay).normalize();
+                const strength = (1.0 - distToRay / 0.25) * 0.008;
+                b.velocity.add(pushForce.multiplyScalar(strength));
+            }
+
+            // Boundary constraints (keep inside pool)
+            const limit = this.poolSize / 2 - 0.05;
+            if (Math.abs(b.position.x) > limit) {
+                b.position.x = Math.sign(b.position.x) * limit;
+                b.velocity.x *= -0.5;
+            }
+            if (Math.abs(b.position.z) > limit) {
+                b.position.z = Math.sign(b.position.z) * limit;
+                b.velocity.z *= -0.5;
+            }
+
+            // Looping behavior
             if(b.position.y > 0) {
                 b.position.y = -this.poolHeight;
+                b.velocity.set(0, 0, 0);
                 b.position.x = (Math.random()-0.5)*(this.poolSize-0.1);
                 b.position.z = (Math.random()-0.5)*(this.poolSize-0.1);
             }
+            
             posAttr.setXYZ(i, b.position.x, b.position.y, b.position.z);
         });
         posAttr.needsUpdate = true;
