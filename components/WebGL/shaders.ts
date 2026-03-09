@@ -112,8 +112,10 @@ export const waterVertexShader = `
 export const waterFragmentShader = `
   #include <packing>
   uniform sampler2D u_waterTexture;
-  uniform sampler2D u_tiles;
   uniform samplerCube u_skybox;
+  uniform sampler2D u_refractionTexture;
+  uniform mat4 u_viewMatrix;
+  uniform mat4 u_projectionMatrix;
   uniform vec3 u_lightDir;
   uniform vec3 u_lightColor;
   uniform float u_specularIntensity;
@@ -130,7 +132,6 @@ export const waterFragmentShader = `
   varying vec3 v_worldPos;
 
   const float IOR_AIR = 1.0;
-  const vec3 abovewaterColor = vec3(0.25, 1.0, 1.25);
   const float poolSize = 2.0;
   const float poolHeight = 1.0;
 
@@ -183,46 +184,39 @@ export const waterFragmentShader = `
   }
 
   vec3 getWallColor(vec3 point) {
-    vec3 wallColor;
-    vec3 normal;
-    float epsilon = 0.005; 
-    
-    if (point.y < -poolHeight + epsilon) {
-        wallColor = texture2D(u_tiles, point.xz * 0.5 + 0.5).rgb;
-        normal = vec3(0.0, 1.0, 0.0);
-    } else if (abs(point.x) > (poolSize / 2.0) - epsilon) {
-        wallColor = texture2D(u_tiles, point.yz * 0.5 + 0.5).rgb;
-        normal = vec3(-sign(point.x), 0.0, 0.0);
-    } else {
-        wallColor = texture2D(u_tiles, point.zy * 0.5 + 0.5).rgb;
-        normal = vec3(0.0, 0.0, -sign(point.z));
-    }
-    float diffuse = max(0.0, dot(u_lightDir, normal));
-    float ambient = 0.4;
-    return wallColor * (diffuse * 0.6 + ambient);
+    vec4 projected = u_projectionMatrix * u_viewMatrix * vec4(point, 1.0);
+    vec2 uv = (projected.xyz / projected.w).xy * 0.5 + 0.5;
+    return texture2D(u_refractionTexture, uv).rgb;
   }
 
   vec3 traceRay(vec3 origin, vec3 ray) {
     if (length(ray) < 1.0e-3) return vec3(0.0);
 
     float t_sphere = intersectSphere(origin, ray, u_sphereCenter, u_sphereRadius);
+    float t_pool = intersectOpenPool(origin, ray);
     
-    if (ray.y >= 0.0) {
-        if (t_sphere < 1.0e5) {
-             return getSphereColor(origin + ray * t_sphere);
-        }
-        return textureCube(u_skybox, ray).rgb;
+    float t = min(t_sphere, t_pool);
+    vec3 hitColor;
+    
+    if (t_sphere < t_pool && t_sphere < 1.0e5) {
+        hitColor = getSphereColor(origin + ray * t_sphere);
+    } else if (t_pool < 1.0e5) {
+        hitColor = getWallColor(origin + ray * t_pool);
     } else {
-        float t_pool = intersectOpenPool(origin, ray);
-        
-        if (t_sphere < t_pool && t_sphere < 1.0e5) {
-             return getSphereColor(origin + ray * t_sphere);
-        } else if (t_pool < 1.0e5) {
-             return getWallColor(origin + ray * t_pool);
-        } else {
-             return vec3(0.0, 0.0, 0.1); 
-        }
+        if (ray.y >= 0.0) return textureCube(u_skybox, ray).rgb;
+        return vec3(0.0, 0.0, 0.1);
     }
+
+    // Volumetric absorption (Beer's Law)
+    // Apply if the ray is traveling through water (origin at surface or ray going down)
+    if (origin.y <= 0.05 || ray.y < 0.0) {
+        float fogFactor = 1.0 - exp(-t * 0.8);
+        vec3 waterColor = u_deepColor;
+        if (!u_useCustomColor) waterColor = vec3(0.0, 0.1, 0.2);
+        hitColor = mix(hitColor, waterColor, fogFactor);
+    }
+
+    return hitColor;
   }
 
   void main() {
@@ -244,16 +238,6 @@ export const waterFragmentShader = `
         // Refraction
         vec3 refractedRay = refract(-viewDir, facingNormal, IOR_AIR / u_waterIor);
         vec3 refractedColor = traceRay(v_worldPos, refractedRay);
-        
-        // Tint underwater colors
-        if (refractedRay.y < 0.0) {
-            vec3 waterTintColor = abovewaterColor;
-            if (u_useCustomColor) {
-              float mixFactor = smoothstep(-0.1, 0.1, v_worldPos.y);
-              waterTintColor = mix(u_deepColor, u_shallowColor, mixFactor);
-            }
-            refractedColor *= waterTintColor;
-        }
         
         // Fresnel
         float F0 = pow((IOR_AIR - u_waterIor) / (IOR_AIR + u_waterIor), 2.0);
