@@ -18,6 +18,7 @@ A log of all tasks, ideas, and progress for this project.
 
 ## Done
 
+-   **[2026-04-05 08:37]**: Updated `README.md` to reflect the current project name ("Water Sim Scene"), framework versions (React 19, Three.js 0.182.0), and correct startup instructions for the Vite-based environment.
 -   **[2024-05-24 09:00]**: Replaced light azimuth/elevation controls with direct XYZ position sliders for more intuitive directional light control. Added a specular intensity slider to control highlight brightness on the water surface.
 -   **[2024-05-23 11:15]**: Fixed water rendering artifact at grazing angles by toning down the specular highlight calculation to prevent color clipping.
 -   **[2024-05-21 13:15]**: Added a toggleable measurement overlay to the Stage, showing real-time dimensions for the button component.

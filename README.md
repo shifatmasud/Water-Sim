@@ -1,15 +1,15 @@
-# React 18 Meta Prototype & Design System Starter Kit
+# Water Sim Scene
 
 [**Remix on AI Studio**](https://ai.studio/apps/drive/1WYqqbd5DDER7bue4-jyHmwA6AC6Fn65w?fullscreenApplet=true)
 
-This is a starter project for building modern, theme-aware React applications. It is now being adapted to house a real-time WebGL water simulation ported to Three.js.
+This is a real-time WebGL water simulation ported to Three.js, built with a modern, theme-aware React design system.
 
 ## Project Scan Sheet
 
 | Category | Details |
 | :--- | :--- |
-| **Framework** | React 18.2.0 (ESM via `importmap`) |
-| **3D Library** | Three.js 0.180.0 |
+| **Framework** | React 19.0.0 (Vite + ESM via `importmap`) |
+| **3D Library** | Three.js 0.182.0 |
 | **Styling** | CSS-in-JS (JS Objects), Semantic Design Tokens, No CSS Modules/Tailwind |
 | **Animation** | Framer Motion 12.x (Spring Physics, Layout Animations) |
 | **Typography** | Bebas Neue (Display), Comic Neue (Quotes), Inter (UI), Victor Mono (Code) |
@@ -22,25 +22,22 @@ This is a starter project for building modern, theme-aware React applications. I
 
 ## What's Inside? (ELI10 Version)
 
-Imagine you're building with LEGOs. This project gives you a super organized box of special LEGO pieces to build an amazing app. The main stage is now a beautiful, interactive water simulation!
+Imagine you're building with LEGOs. This project gives you a super organized box of special LEGO pieces to build an amazing app. The main stage is a beautiful, interactive water simulation!
 
 -   **`index.html`**: The front door to our app.
 -   **`index.tsx`**: The main brain of the app.
 -   **`importmap.js`**: A map that tells our app where to find its tools (like React & Three.js).
 -   **`Theme.tsx`**: The "master closet" for our app's style (colors, fonts, etc.).
 -   **`hooks/`**: Special tools (custom hooks).
-    -   `useBreakpoint.tsx`: Checks if you're on a phone, tablet, or desktop.
 -   **`types/`**: A dictionary for our app's data shapes.
-    -   `index.tsx`: Defines what a "Window" or a "Log Entry" looks like.
 -   **`components/`**: The LEGO pieces themselves, organized by complexity!
-    -   **`Core/`**: The most basic, single-purpose pieces (Button, Input, Toggle, etc.).
-    -   **`Package/`**: Combines Core pieces into something more useful (`ControlPanel`, `FloatingWindow`). The `WebGLWater` component lives here but gets its engine from the `WebGL` folder.
-    -   **`WebGL/`**: The highly specialized LEGO Technic pieces for our water simulation engine.
-    -   **`Section/`**: A whole section of the app (the `Dock` at the bottom, the main `Stage`).
-    -   **`Page/`**: A full screen you see (`Welcome` page).
-    -   **`App/`**: The complete, running application (`MetaPrototype`).
+    -   **`Core/`**: Basic, single-purpose pieces (Button, Input, Toggle, etc.).
+    -   **`Package/`**: Combines Core pieces into something more useful (`ControlPanel`, `FloatingWindow`).
+    -   **`WebGL/`**: Specialized pieces for our water simulation engine.
+    -   **`Section/`**: Larger sections of the app (the `Dock`, the main `Stage`).
+    -   **`Page/`**: Full screen layouts (`Welcome` page).
 -   **`README.md`**: This file! Your friendly guide.
--   **`LLM.md`**: Special instructions for AI helpers.
+-   **`LLM.md`**: Instructions for AI helpers.
 -   **`noteBook.md`**: A diary of tasks and progress.
 -   **`bugReport.md`**: A list of bugs to fix.
 
@@ -96,10 +93,18 @@ Imagine you're building with LEGOs. This project gives you a super organized box
 ├── index.html
 ├── index.tsx
 ├── metadata.json
+└── package.json
 ```
 
 ## How to Get Started
 
-1.  Open the `index.html` file in a modern web browser.
-2.  That's it! The app will run.
-3.  Start changing the code in the `.tsx` files to build your own features.
+1.  Install dependencies:
+    ```bash
+    npm install
+    ```
+2.  Start the development server:
+    ```bash
+    npm run dev
+    ```
+3.  Open the provided URL in your browser.
+4.  Start changing the code in the `.tsx` files to build your own features.
