@@ -30,6 +30,8 @@ interface WebGLWaterProps {
   waveSpeed: number;
   bubbleSize: number;
   bubbleOpacity: number;
+  lightShaftOpacity: number;
+  lightShaftColor: string;
   sceneApiRef?: React.RefObject<any>;
 }
 
@@ -49,6 +51,7 @@ const WebGLWater = (props: WebGLWaterProps) => {
     if (props.sceneApiRef) {
         props.sceneApiRef.current = {
             setLightIntensity: (v: number) => engine.setLightIntensity(v),
+            setLightShaftOpacity: (v: number) => engine.setLightShaftOpacity(v),
             setSpecularIntensity: (v: number) => engine.setSpecularIntensity(v),
             setDamping: (v: number) => engine.setDamping(v),
             setWindStrength: (v: number) => engine.setWindStrength(v),
@@ -91,6 +94,8 @@ const WebGLWater = (props: WebGLWaterProps) => {
   useEffect(() => { engineRef.current?.setInteractionStrength(props.interactionStrength); }, [props.interactionStrength]);
   useEffect(() => { engineRef.current?.setWaveSpeed(props.waveSpeed); }, [props.waveSpeed]);
   useEffect(() => { engineRef.current?.setBubbleConfig(props.bubbleSize, props.bubbleOpacity); }, [props.bubbleSize, props.bubbleOpacity]);
+  useEffect(() => { engineRef.current?.setLightShaftOpacity(props.lightShaftOpacity); }, [props.lightShaftOpacity]);
+  useEffect(() => { engineRef.current?.setLightShaftColor(props.lightShaftColor); }, [props.lightShaftColor]);
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }} />;
 };

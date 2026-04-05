@@ -47,6 +47,46 @@ export const createBubbleTexture = () => {
     return new THREE.CanvasTexture(canvas);
 };
 
+export const createLightShaftTexture = () => {
+    const width = 128; // Increased width for better blur
+    const height = 512; // Increased height
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return new THREE.Texture();
+    
+    // Vertical gradient with softer falloff
+    const g = ctx.createLinearGradient(0, 0, 0, height);
+    g.addColorStop(0, 'rgba(255, 255, 255, 0.0)');
+    g.addColorStop(0.3, 'rgba(255, 255, 255, 0.3)');
+    g.addColorStop(0.7, 'rgba(255, 255, 255, 0.15)');
+    g.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+    
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, width, height);
+    
+    // Horizontal gradient with very soft Gaussian-like falloff
+    const g2 = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, width/2);
+    g2.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    g2.addColorStop(0.4, 'rgba(255, 255, 255, 0.6)');
+    g2.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.fillStyle = g2;
+    // We want to stretch the radial gradient vertically
+    ctx.save();
+    ctx.scale(1, height/width);
+    ctx.translate(0, -(height/width - 1) * width/2);
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    return texture;
+};
+
 export const SKY_PRESETS = {
   default: { turbidity: 10, rayleigh: 2, mieCoefficient: 0.005, mieDirectionalG: 0.8 },
   sunset: { turbidity: 20, rayleigh: 3, mieCoefficient: 0.002, mieDirectionalG: 0.95 },

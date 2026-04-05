@@ -310,3 +310,93 @@ export const bubbleFragmentShader = `
     gl_FragColor = tex * v_opacity * u_baseOpacity;
   }
 `;
+
+export const maskVertexShader = `
+  varying vec3 v_worldPos;
+  void main() {
+    v_worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+export const maskFragmentShader = `
+  varying vec3 v_worldPos;
+  uniform vec3 u_min;
+  uniform vec3 u_max;
+  void main() {
+    float inside =
+      step(u_min.x, v_worldPos.x) * step(v_worldPos.x, u_max.x) *
+      step(u_min.y, v_worldPos.y) * step(v_worldPos.y, u_max.y) *
+      step(u_min.z, v_worldPos.z) * step(v_worldPos.z, u_max.z);
+    
+    // Fade mask near top surface for realism
+    float edge = smoothstep(u_max.y, u_max.y - 0.2, v_worldPos.y);
+    inside *= edge;
+
+    gl_FragColor = vec4(vec3(inside), 1.0);
+  }
+`;
+
+export const godRaysVertexShader = `
+  varying vec2 v_uv;
+  void main() {
+    v_uv = uv;
+    gl_Position = vec4(position, 1.0);
+  }
+`;
+
+export const godRaysFragmentShader = `
+  varying vec2 v_uv;
+  uniform sampler2D u_maskTexture;
+  uniform vec2 u_sunPos;
+  uniform float u_exposure;
+  uniform float u_decay;
+  uniform float u_density;
+  uniform float u_weight;
+  
+  const int SAMPLES = 64;
+
+  void main() {
+    vec2 deltaUv = (v_uv - u_sunPos);
+    deltaUv *= 1.0 / float(SAMPLES) * u_density;
+    vec2 uv = v_uv;
+    float illuminationDecay = 1.0;
+    vec3 color = vec3(0.0);
+
+    for (int i = 0; i < SAMPLES; i++) {
+      uv -= deltaUv;
+      vec3 sampleColor = texture2D(u_maskTexture, uv).rgb;
+      sampleColor *= illuminationDecay * u_weight;
+      color += sampleColor;
+      illuminationDecay *= u_decay;
+    }
+
+    gl_FragColor = vec4(color * u_exposure, 1.0);
+  }
+`;
+
+export const compositeVertexShader = `
+  varying vec2 v_uv;
+  void main() {
+    v_uv = uv;
+    gl_Position = vec4(position, 1.0);
+  }
+`;
+
+export const compositeFragmentShader = `
+  varying vec2 v_uv;
+  uniform sampler2D u_sceneTexture;
+  uniform sampler2D u_raysTexture;
+  uniform sampler2D u_maskTexture;
+  
+  void main() {
+    vec3 sceneColor = texture2D(u_sceneTexture, v_uv).rgb;
+    vec3 raysColor = texture2D(u_raysTexture, v_uv).rgb;
+    float mask = texture2D(u_maskTexture, v_uv).r;
+    
+    // Apply god rays only where mask is active
+    vec3 finalColor = mix(sceneColor, sceneColor + raysColor, mask);
+    
+    gl_FragColor = vec4(finalColor, 1.0);
+  }
+`;

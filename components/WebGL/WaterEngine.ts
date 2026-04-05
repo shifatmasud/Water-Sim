@@ -8,7 +8,8 @@ import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { GPGPUWater } from './GPGPUWater.ts';
 import { CausticsGenerator } from './CausticsGenerator.ts';
-import { createTileTexture, createBubbleTexture, SKY_PRESETS } from './assets.ts';
+import { LightShafts } from './LightShafts.ts';
+import { createTileTexture, createBubbleTexture, createLightShaftTexture, SKY_PRESETS } from './assets.ts';
 import { waterVertexShader, waterFragmentShader } from './shaders.ts';
 
 // Local definition for the Shader object passed in onBeforeCompile
@@ -29,6 +30,7 @@ export class WaterEngine {
     // Components
     waterSim: GPGPUWater;
     caustics: CausticsGenerator;
+    lightShafts: LightShafts;
     sky: Sky;
     sunLight: THREE.DirectionalLight;
     cubeCamera: THREE.CubeCamera;
@@ -235,6 +237,10 @@ export class WaterEngine {
         this.bubbleParticles = new THREE.Points(bubbleGeo, bubbleMat);
         this.scene.add(this.bubbleParticles);
 
+        // Light Shafts
+        this.lightShafts = new LightShafts(this.poolSize, this.poolHeight);
+        this.scene.add(this.lightShafts.group);
+
         // Events
         this.container.addEventListener('pointerdown', this.onPointerDown);
         this.container.addEventListener('pointermove', this.onPointerMove);
@@ -410,6 +416,8 @@ export class WaterEngine {
     }
 
     setLightIntensity(v: number) { this.sunLight.intensity = v; }
+    setLightShaftOpacity(v: number) { this.lightShafts.setOpacity(v); }
+    setLightShaftColor(color: string) { this.lightShafts.setColor(color); }
     setSpecularIntensity(v: number) { this.waterMaterial.uniforms.u_specularIntensity.value = v; }
     setDamping(v: number) { this.waterSim.setDamping(v); }
     setWindStrength(v: number) { this.windStrength = v; }
@@ -527,6 +535,9 @@ export class WaterEngine {
 
         // Update Caustics before refraction pass
         this.caustics.update(this.renderer, texture, this.sunLight.position);
+
+        // Update Light Shafts
+        this.lightShafts.update(time, this.sunLight.position);
 
         // --- Refraction Pass ---
         // Hide sphere and water surface for the refraction capture

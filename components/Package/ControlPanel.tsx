@@ -61,6 +61,10 @@ interface ControlPanelProps {
   onBubbleSizeCommit: (v: number) => void;
   bubbleOpacity: number;
   onBubbleOpacityCommit: (v: number) => void;
+  lightShaftOpacity: number;
+  onLightShaftOpacityCommit: (v: number) => void;
+  lightShaftColor: string;
+  onLightShaftColorChange: (e: any) => void;
 }
 
 const SKY_PRESETS = [
@@ -117,6 +121,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     onBubbleSizeCommit,
     bubbleOpacity,
     onBubbleOpacityCommit,
+    lightShaftOpacity,
+    onLightShaftOpacityCommit,
+    lightShaftColor,
+    onLightShaftColorChange,
 }) => {
   const { theme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -138,6 +146,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   const waveSpeedMV = useMotionValue(waveSpeed);
   const bubbleSizeMV = useMotionValue(bubbleSize);
   const bubbleOpacityMV = useMotionValue(bubbleOpacity);
+  const lightShaftOpacityMV = useMotionValue(lightShaftOpacity);
 
   React.useEffect(() => { lightX_MV.set(lightPosition.x) }, [lightPosition.x, lightX_MV]);
   React.useEffect(() => { lightY_MV.set(lightPosition.y) }, [lightPosition.y, lightY_MV]);
@@ -154,6 +163,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   React.useEffect(() => { waveSpeedMV.set(waveSpeed) }, [waveSpeed, waveSpeedMV]);
   React.useEffect(() => { bubbleSizeMV.set(bubbleSize) }, [bubbleSize, bubbleSizeMV]);
   React.useEffect(() => { bubbleOpacityMV.set(bubbleOpacity) }, [bubbleOpacity, bubbleOpacityMV]);
+  React.useEffect(() => { lightShaftOpacityMV.set(lightShaftOpacity) }, [lightShaftOpacity, lightShaftOpacityMV]);
 
   const sectionDivider = <div style={{ borderTop: `1px solid ${theme.Color.Base.Surface[3]}`, margin: `0` }} />;
   const sectionHeader = (label: string) => (
@@ -327,6 +337,18 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         motionValue={bubbleOpacityMV}
         onCommit={onBubbleOpacityCommit}
         min={0} max={1} step={0.01}
+      />
+      
+      <RangeSlider
+        label="Light Shaft Opacity"
+        motionValue={lightShaftOpacityMV}
+        onCommit={onLightShaftOpacityCommit}
+        min={0} max={1} step={0.01}
+      />
+      <ColorPicker
+        label="Light Shaft Color"
+        value={lightShaftColor}
+        onChange={onLightShaftColorChange}
       />
 
       {sectionDivider}

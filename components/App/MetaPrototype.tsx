@@ -51,10 +51,13 @@ const MetaPrototype = () => {
   const [waveSpeed, setWaveSpeed] = useState(1.0);
   const [bubbleSize, setBubbleSize] = useState(0.02);
   const [bubbleOpacity, setBubbleOpacity] = useState(0.8);
+  const [lightShaftOpacity, setLightShaftOpacity] = useState(0.12);
+  const [lightShaftColor, setLightShaftColor] = useState('#ffffff');
 
   // -- Direct API ref for real-time updates --
   const sceneApiRef = useRef<{ 
     setLightIntensity?: (v: number) => void; 
+    setLightShaftOpacity?: (v: number) => void;
     setSpecularIntensity?: (v: number) => void; 
     setDamping?: (v: number) => void;
     setWindStrength?: (v: number) => void;
@@ -114,6 +117,8 @@ const MetaPrototype = () => {
           waveSpeed,
           bubbleSize,
           bubbleOpacity,
+          lightShaftOpacity,
+          lightShaftColor,
           ...simulationConfig 
       }, null, 2));
     }
@@ -279,6 +284,8 @@ const MetaPrototype = () => {
   const handleWaveSpeedCommit = (v: number) => { setWaveSpeed(v); logEvent(`Wave Speed: ${v.toFixed(2)}`); };
   const handleBubbleSizeCommit = (v: number) => { setBubbleSize(v); logEvent(`Bubble Size: ${v.toFixed(2)}`); };
   const handleBubbleOpacityCommit = (v: number) => { setBubbleOpacity(v); logEvent(`Bubble Opacity: ${v.toFixed(2)}`); };
+  const handleLightShaftOpacityCommit = (v: number) => { setLightShaftOpacity(v); logEvent(`Light Shaft Opacity: ${v.toFixed(2)}`); };
+  const handleLightShaftColorChange = (e: any) => { setLightShaftColor(e.target.value); logEvent(`Light Shaft Color: ${e.target.value}`); };
 
 
   return (
@@ -314,6 +321,8 @@ const MetaPrototype = () => {
         waveSpeed={waveSpeed}
         bubbleSize={bubbleSize}
         bubbleOpacity={bubbleOpacity}
+        lightShaftOpacity={lightShaftOpacity}
+        lightShaftColor={lightShaftColor}
         sceneApiRef={sceneApiRef}
       />
 
@@ -376,6 +385,10 @@ const MetaPrototype = () => {
               onBubbleSizeCommit={handleBubbleSizeCommit}
               bubbleOpacity={bubbleOpacity}
               onBubbleOpacityCommit={handleBubbleOpacityCommit}
+              lightShaftOpacity={lightShaftOpacity}
+              onLightShaftOpacityCommit={handleLightShaftOpacityCommit}
+              lightShaftColor={lightShaftColor}
+              onLightShaftColorChange={handleLightShaftColorChange}
             />
           </FloatingWindow>
         )}

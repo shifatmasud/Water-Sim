@@ -28,6 +28,8 @@ interface StageProps {
   waveSpeed: number;
   bubbleSize: number;
   bubbleOpacity: number;
+  lightShaftOpacity: number;
+  lightShaftColor: string;
   sceneApiRef: React.RefObject<any>;
 }
 
@@ -52,6 +54,8 @@ const Stage = ({
     waveSpeed,
     bubbleSize,
     bubbleOpacity,
+    lightShaftOpacity,
+    lightShaftColor,
     sceneApiRef,
 }: StageProps) => {
   return (
@@ -81,6 +85,8 @@ const Stage = ({
             waveSpeed={waveSpeed}
             bubbleSize={bubbleSize}
             bubbleOpacity={bubbleOpacity}
+            lightShaftOpacity={lightShaftOpacity}
+            lightShaftColor={lightShaftColor}
             sceneApiRef={sceneApiRef}
         />
     </div>
