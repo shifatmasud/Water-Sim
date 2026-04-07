@@ -276,14 +276,34 @@ export class WaterEngine {
         this.sphereMaterial.onBeforeCompile = (shader: any) => {
             shader.uniforms.u_causticsTexture = { value: this.caustics.getTexture() };
             shader.uniforms.u_waterTexture = { value: this.waterSim.getTexture() };
+            shader.uniforms.u_time = { value: 0.0 };
             shader.uniforms.u_lightDir = { value: this.sunLight.position };
             shader.uniforms.u_waterIor = { value: 1.333 };
             shader.uniforms.u_deepColor = { value: this.waterMaterial.uniforms.u_deepColor.value };
             shader.uniforms.u_useCustomColor = { value: this.waterMaterial.uniforms.u_useCustomColor.value };
-            shader.vertexShader = `varying vec3 v_worldPos;\n` + shader.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>\nv_worldPos = (modelMatrix * vec4(position, 1.0)).xyz;`);
+            shader.vertexShader = `
+                uniform float u_time;
+                uniform sampler2D u_waterTexture;
+                varying vec3 v_worldPos;
+            ` + shader.vertexShader.replace('#include <project_vertex>', `
+                
+                vec2 waterUv = (modelMatrix * vec4(position, 1.0)).xz * 0.5 + 0.5;
+                waterUv.y = 1.0 - waterUv.y;
+                float waterHeight = texture2D(u_waterTexture, waterUv).r;
+                v_worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+                
+                if (v_worldPos.y < waterHeight) {
+                    float wave = sin(position.y * 10.0 + u_time * 2.0) * 0.01;
+                    transformed.x += wave;
+                    transformed.z += wave;
+                }
+                
+                #include <project_vertex>
+            `);
             shader.fragmentShader = `uniform sampler2D u_causticsTexture; uniform sampler2D u_waterTexture; uniform vec3 u_lightDir; uniform float u_waterIor; uniform vec3 u_deepColor; uniform bool u_useCustomColor; varying vec3 v_worldPos; const float IOR_AIR = 1.0;\n` + shader.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>\nvec2 waterUv = v_worldPos.xz * 0.5 + 0.5; waterUv.y = 1.0 - waterUv.y; float waterHeight = texture2D(u_waterTexture, waterUv).r; if (v_worldPos.y < waterHeight) { vec3 refractedLight = refract(-u_lightDir, vec3(0.0, 1.0, 0.0), IOR_AIR / u_waterIor); vec2 causticsUv = v_worldPos.xz - v_worldPos.y * refractedLight.xz / refractedLight.y; causticsUv = causticsUv * 0.5 + 0.5; float caustics = texture2D(u_causticsTexture, causticsUv).r; gl_FragColor.rgb += vec3(1.0) * caustics * 0.5; float depth = waterHeight - v_worldPos.y; float fogFactor = 1.0 - exp(-depth * 2.0); vec3 waterColor = u_deepColor; if (!u_useCustomColor) waterColor = vec3(0.0, 0.1, 0.2); gl_FragColor.rgb = mix(gl_FragColor.rgb, waterColor, fogFactor); }`);
             this.sphereShader = shader as Shader;
         };
+        this.sphereMaterial.needsUpdate = true;
     }
 
     private onPointerDown = (e: PointerEvent) => {
@@ -562,6 +582,9 @@ export class WaterEngine {
         if(this.sphereShader) {
             this.sphereShader.uniforms.u_lightDir.value.copy(this.sunLight.position);
             this.sphereShader.uniforms.u_waterTexture.value = texture;
+            this.sphereShader.uniforms.u_time.value = time;
+        } else {
+            console.log('sphereShader is null');
         }
 
         // Bubbles
