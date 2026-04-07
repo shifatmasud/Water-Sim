@@ -146,13 +146,24 @@ export class CausticsGenerator {
         // 2. Blur passes (two-pass Gaussian blur)
         // Horizontal blur
         this.blurMaterial.uniforms.u_texture.value = this.target.texture;
-        this.blurMaterial.uniforms.u_delta.value.set(1.0 / this.target.width, 0.0);
+        this.blurMaterial.uniforms.u_delta.value.set(2.0 / this.target.width, 0.0);
         renderer.setRenderTarget(this.blurTarget);
         renderer.render(this.blurScene, this.camera);
 
         // Vertical blur
         this.blurMaterial.uniforms.u_texture.value = this.blurTarget.texture;
-        this.blurMaterial.uniforms.u_delta.value.set(0.0, 1.0 / this.target.height);
+        this.blurMaterial.uniforms.u_delta.value.set(0.0, 2.0 / this.target.height);
+        renderer.setRenderTarget(this.target);
+        renderer.render(this.blurScene, this.camera);
+
+        // Second pass for more diffusion
+        this.blurMaterial.uniforms.u_texture.value = this.target.texture;
+        this.blurMaterial.uniforms.u_delta.value.set(4.0 / this.target.width, 0.0);
+        renderer.setRenderTarget(this.blurTarget);
+        renderer.render(this.blurScene, this.camera);
+
+        this.blurMaterial.uniforms.u_texture.value = this.blurTarget.texture;
+        this.blurMaterial.uniforms.u_delta.value.set(0.0, 4.0 / this.target.height);
         renderer.setRenderTarget(this.target);
         renderer.render(this.blurScene, this.camera);
 

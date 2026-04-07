@@ -96,6 +96,11 @@ Imagine you're building with LEGOs. This project gives you a super organized box
 └── package.json
 ```
 
+## Changelog
+
+### [0.1.0] - 2026-04-07
+- Initial release of the Water Sim Scene.
+
 ## How to Get Started
 
 1.  Install dependencies:

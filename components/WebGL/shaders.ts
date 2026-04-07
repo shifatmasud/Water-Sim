@@ -94,6 +94,7 @@ export const waterVertexShader = `
   uniform sampler2D u_waterTexture;
   varying vec2 v_uv;
   varying vec3 v_worldPos;
+  varying float v_viewDist;
 
   void main() {
     v_uv = uv;
@@ -105,7 +106,9 @@ export const waterVertexShader = `
     float falloff = smoothstep(0.0, 0.05, distToEdge);
     pos.y += info.r * falloff;
     v_worldPos = (modelMatrix * vec4(pos, 1.0)).xyz;
-    gl_Position = projectionMatrix * viewMatrix * vec4(v_worldPos, 1.0);
+    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+    v_viewDist = length(mvPosition.xyz);
+    gl_Position = projectionMatrix * mvPosition;
   }
 `;
 
@@ -127,13 +130,26 @@ export const waterFragmentShader = `
   uniform vec3 u_shallowColor;
   uniform vec3 u_deepColor;
   uniform float u_waterIor;
+  uniform float u_time;
+  uniform bool u_cameraUnderwater;
+  uniform vec3 u_underwaterFogColor;
+  uniform float u_underwaterFogDensity;
 
   varying vec2 v_uv;
   varying vec3 v_worldPos;
+  varying float v_viewDist;
 
   const float IOR_AIR = 1.0;
   const float poolSize = 2.0;
   const float poolHeight = 1.0;
+
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+  float noise(vec2 p) {
+    vec2 i = floor(p); vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+  }
 
   float intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
@@ -186,30 +202,47 @@ export const waterFragmentShader = `
   vec3 getWallColor(vec3 point) {
     vec4 projected = u_projectionMatrix * u_viewMatrix * vec4(point, 1.0);
     vec2 uv = (projected.xyz / projected.w).xy * 0.5 + 0.5;
+    
+    if (u_cameraUnderwater) {
+        // Subtle Chromatic Aberration for refraction/reflection
+        float shift = 0.003;
+        float r = texture2D(u_refractionTexture, uv + vec2(shift, 0.0)).r;
+        float g = texture2D(u_refractionTexture, uv).g;
+        float b = texture2D(u_refractionTexture, uv - vec2(shift, 0.0)).b;
+        return vec3(r, g, b);
+    }
+    
     return texture2D(u_refractionTexture, uv).rgb;
   }
 
   vec3 traceRay(vec3 origin, vec3 ray) {
     if (length(ray) < 1.0e-3) return vec3(0.0);
 
-    float t_sphere = intersectSphere(origin, ray, u_sphereCenter, u_sphereRadius);
-    float t_pool = intersectOpenPool(origin, ray);
+    // Subtle ray distortion for underwater refraction
+    vec3 distortedRay = ray;
+    if (u_cameraUnderwater) {
+        float n = noise(ray.xy * 8.0 + u_time * 1.2);
+        distortedRay.xy += (n - 0.5) * 0.04;
+        distortedRay = normalize(distortedRay);
+    }
+
+    float t_sphere = intersectSphere(origin, distortedRay, u_sphereCenter, u_sphereRadius);
+    float t_pool = intersectOpenPool(origin, distortedRay);
     
     float t = min(t_sphere, t_pool);
     vec3 hitColor;
     
     if (t_sphere < t_pool && t_sphere < 1.0e5) {
-        hitColor = getSphereColor(origin + ray * t_sphere);
+        hitColor = getSphereColor(origin + distortedRay * t_sphere);
     } else if (t_pool < 1.0e5) {
-        hitColor = getWallColor(origin + ray * t_pool);
+        hitColor = getWallColor(origin + distortedRay * t_pool);
     } else {
-        if (ray.y >= 0.0) return textureCube(u_skybox, ray).rgb;
+        if (distortedRay.y >= 0.0) return textureCube(u_skybox, distortedRay).rgb;
         return vec3(0.0, 0.0, 0.1);
     }
 
     // Volumetric absorption (Beer's Law)
-    // Apply if the ray is traveling through water (origin at surface or ray going down)
-    if (origin.y <= 0.05 || ray.y < 0.0) {
+    if (origin.y <= 0.05 || distortedRay.y < 0.0) {
         float fogFactor = 1.0 - exp(-t * 0.8);
         vec3 waterColor = u_deepColor;
         if (!u_useCustomColor) waterColor = vec3(0.0, 0.1, 0.2);
@@ -237,6 +270,12 @@ export const waterFragmentShader = `
 
         // Refraction
         vec3 refractedRay = refract(-viewDir, facingNormal, IOR_AIR / u_waterIor);
+        
+        // Add surface refraction distortion
+        float rn = noise(v_worldPos.xz * 5.0 + u_time * 0.5);
+        refractedRay.xz += (rn - 0.5) * 0.05;
+        refractedRay = normalize(refractedRay);
+        
         vec3 refractedColor = traceRay(v_worldPos, refractedRay);
         
         // Fresnel
@@ -262,6 +301,11 @@ export const waterFragmentShader = `
         // Refraction of the world above (sky, sphere if above water)
         vec3 refractedRay = refract(-viewDir, facingNormal, u_waterIor / IOR_AIR);
         
+        // Add surface refraction distortion (looking up from underwater)
+        float rn = noise(v_worldPos.xz * 5.0 + u_time * 0.5);
+        refractedRay.xz += (rn - 0.5) * 0.05;
+        refractedRay = normalize(refractedRay);
+        
         // Check for Total Internal Reflection
         if (length(refractedRay) < 0.1) {
             finalColor = reflectedColor;
@@ -277,6 +321,12 @@ export const waterFragmentShader = `
     }
 
     gl_FragColor = vec4(finalColor, 1.0);
+
+    // Camera Space Exponential Depth Fog
+    if (u_cameraUnderwater) {
+        float cameraFog = 1.0 - exp(-v_viewDist * u_underwaterFogDensity);
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, u_underwaterFogColor, cameraFog * 0.5);
+    }
   }
 `;
 
