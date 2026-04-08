@@ -39,8 +39,8 @@ const MetaPrototype = () => {
   const [waterColorDeep, setWaterColorDeep] = useState('#005577'); // Dark cyan
 
   // -- Granular Physics State --
-  const [simDamping, setSimDamping] = useState(0.91);
-  const [simWind, setSimWind] = useState(0.0005);
+  const [simDamping, setSimDamping] = useState(0.955);
+  const [simWind, setSimWind] = useState(0.0080);
   const [matRoughness, setMatRoughness] = useState(0.1);
   const [matMetalness, setMatMetalness] = useState(0.0);
   const [matIor, setMatIor] = useState(1.333);

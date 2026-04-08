@@ -39,7 +39,7 @@ export class GPGPUWater {
             uniforms: { 
                 u_texture: { value: null }, 
                 u_delta: { value: new THREE.Vector2(1/size, 1/size) },
-                u_damping: { value: 0.995 }
+                u_damping: { value: 0.955 }
             },
             vertexShader: commonVertexShader, fragmentShader: updateShaderFs
         });

@@ -69,7 +69,7 @@ export class WaterEngine {
     poolSize = 2.0;
     poolHeight = 1.0;
     bubblesData: Array<{ position: THREE.Vector3, velocity: THREE.Vector3, upwardSpeed: number, wobbleSpeed: number, wobbleOffset: number }> = [];
-    windStrength = 0.0005;
+    windStrength = 0.0080;
     interactionStrength = 0.03;
     waveSpeed = 1.0;
     accumulatedWaveTime = 0;
@@ -266,8 +266,80 @@ export class WaterEngine {
             shader.uniforms.u_waterIor = { value: 1.333 };
             shader.uniforms.u_deepColor = { value: this.waterMaterial.uniforms.u_deepColor.value };
             shader.uniforms.u_useCustomColor = { value: this.waterMaterial.uniforms.u_useCustomColor.value };
-            shader.vertexShader = `varying vec3 v_worldPos;\n` + shader.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>\nv_worldPos = (modelMatrix * vec4(position, 1.0)).xyz;`);
-            shader.fragmentShader = `uniform sampler2D u_causticsTexture; uniform sampler2D u_waterTexture; uniform vec3 u_lightDir; uniform vec3 u_sphereCenter; uniform float u_sphereRadius; uniform float u_waterIor; uniform vec3 u_deepColor; uniform bool u_useCustomColor; varying vec3 v_worldPos; const float IOR_AIR = 1.0;\n` + shader.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>\nvec3 toSphere = u_sphereCenter - v_worldPos; float t = dot(toSphere, u_lightDir); float shadow = 0.0; if (t > 0.0) { float distSq = dot(toSphere, toSphere) - t * t; float dist = sqrt(max(0.0, distSq)); shadow = smoothstep(u_sphereRadius * 1.5, u_sphereRadius * 0.5, dist); } vec2 waterUv = v_worldPos.xz * 0.5 + 0.5; waterUv.y = 1.0 - waterUv.y; float waterHeight = texture2D(u_waterTexture, waterUv).r; vec3 causticColor = vec3(0.0); if (v_worldPos.y < waterHeight) { vec3 refractedLight = refract(-u_lightDir, vec3(0.0, 1.0, 0.0), IOR_AIR / u_waterIor); vec2 causticsUv = v_worldPos.xz - v_worldPos.y * refractedLight.xz / refractedLight.y; causticsUv = causticsUv * 0.5 + 0.5; float caustics = texture2D(u_causticsTexture, causticsUv).r; causticColor = vec3(1.0) * caustics * 0.5; } gl_FragColor.rgb *= (1.0 - shadow * 0.5); gl_FragColor.rgb += causticColor * (1.0 - shadow); if (v_worldPos.y < waterHeight) { float depth = waterHeight - v_worldPos.y; float fogFactor = 1.0 - exp(-depth * 2.0); vec3 waterColor = u_deepColor; if (!u_useCustomColor) waterColor = vec3(0.0, 0.1, 0.2); gl_FragColor.rgb = mix(gl_FragColor.rgb, waterColor, fogFactor); }`);
+            shader.uniforms.u_time = { value: 0 };
+            
+            shader.vertexShader = `varying vec3 v_worldPos;\n` + 
+                shader.vertexShader.replace('#include <project_vertex>', 
+                `#include <project_vertex>\nv_worldPos = (modelMatrix * vec4(position, 1.0)).xyz;`);
+            
+            shader.fragmentShader = `
+                uniform sampler2D u_causticsTexture; 
+                uniform sampler2D u_waterTexture; 
+                uniform vec3 u_lightDir; 
+                uniform vec3 u_sphereCenter; 
+                uniform float u_sphereRadius; 
+                uniform float u_waterIor; 
+                uniform vec3 u_deepColor; 
+                uniform bool u_useCustomColor; 
+                uniform float u_time;
+                varying vec3 v_worldPos; 
+                const float IOR_AIR = 1.0;
+            \n` + shader.fragmentShader
+                .replace('#include <map_fragment>', `
+                    #ifdef USE_MAP
+                        vec2 distortedUv = vMapUv;
+                        vec2 m_waterUv = v_worldPos.xz * 0.5 + 0.5;
+                        m_waterUv.y = 1.0 - m_waterUv.y;
+                        float m_waterHeight = texture2D(u_waterTexture, m_waterUv).r;
+                        if (v_worldPos.y < m_waterHeight) {
+                            float m_depth = m_waterHeight - v_worldPos.y;
+                            float m_flow = sin(v_worldPos.y * 12.0 + u_time * 2.5) * 0.012 * smoothstep(0.0, 0.15, m_depth);
+                            distortedUv += m_flow;
+                        }
+                        vec4 texelColor = texture2D( map, distortedUv );
+                        diffuseColor *= texelColor;
+                    #endif
+                `)
+                .replace('#include <dithering_fragment>', `
+                    #include <dithering_fragment>
+                    vec3 toSphere = u_sphereCenter - v_worldPos; 
+                    float t = dot(toSphere, u_lightDir); 
+                    float shadow = 0.0; 
+                    if (t > 0.0) { 
+                        float distSq = dot(toSphere, toSphere) - t * t; 
+                        float dist = sqrt(max(0.0, distSq)); 
+                        shadow = smoothstep(u_sphereRadius * 1.5, u_sphereRadius * 0.5, dist); 
+                    } 
+                    vec2 d_waterUv = v_worldPos.xz * 0.5 + 0.5; 
+                    d_waterUv.y = 1.0 - d_waterUv.y; 
+                    float d_waterHeight = texture2D(u_waterTexture, d_waterUv).r; 
+                    vec3 causticColor = vec3(0.0); 
+                    if (v_worldPos.y < d_waterHeight) { 
+                        vec3 refractedLight = refract(-u_lightDir, vec3(0.0, 1.0, 0.0), IOR_AIR / u_waterIor); 
+                        vec2 causticsUv = v_worldPos.xz - v_worldPos.y * refractedLight.xz / refractedLight.y; 
+                        causticsUv = causticsUv * 0.5 + 0.5; 
+                        
+                        // Caustics Enhancement: Blur + RGB Shift
+                        float shift = 0.005;
+                        float r = texture2D(u_causticsTexture, causticsUv + shift).r;
+                        float g = texture2D(u_causticsTexture, causticsUv).r;
+                        float b = texture2D(u_causticsTexture, causticsUv - shift).r;
+                        causticColor = vec3(r, g, b) * 0.8; 
+                        
+                        // Depth-based falloff
+                        float depth = d_waterHeight - v_worldPos.y;
+                        causticColor *= clamp(1.0 - depth * 0.5, 0.0, 1.0);
+                    } 
+                    gl_FragColor.rgb *= (1.0 - shadow * 0.5); 
+                    gl_FragColor.rgb += causticColor * (1.0 - shadow); 
+                    if (v_worldPos.y < d_waterHeight) { 
+                        float depth = d_waterHeight - v_worldPos.y; 
+                        float fogFactor = 1.0 - exp(-depth * 2.0); 
+                        vec3 waterColor = u_deepColor; 
+                        if (!u_useCustomColor) waterColor = vec3(0.0, 0.1, 0.2); 
+                        gl_FragColor.rgb = mix(gl_FragColor.rgb, waterColor, fogFactor); 
+                    }
+                `);
             this.poolShader = shader as Shader;
         };
     }
@@ -280,11 +352,76 @@ export class WaterEngine {
             shader.uniforms.u_waterIor = { value: 1.333 };
             shader.uniforms.u_deepColor = { value: this.waterMaterial.uniforms.u_deepColor.value };
             shader.uniforms.u_useCustomColor = { value: this.waterMaterial.uniforms.u_useCustomColor.value };
-            shader.vertexShader = `varying vec3 v_worldPos;\n` + shader.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>\nv_worldPos = (modelMatrix * vec4(position, 1.0)).xyz;`);
-            shader.fragmentShader = `uniform sampler2D u_causticsTexture; uniform sampler2D u_waterTexture; uniform vec3 u_lightDir; uniform float u_waterIor; uniform vec3 u_deepColor; uniform bool u_useCustomColor; varying vec3 v_worldPos; const float IOR_AIR = 1.0;\n` + shader.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>\nvec2 waterUv = v_worldPos.xz * 0.5 + 0.5; waterUv.y = 1.0 - waterUv.y; float waterHeight = texture2D(u_waterTexture, waterUv).r; if (v_worldPos.y < waterHeight) { vec3 refractedLight = refract(-u_lightDir, vec3(0.0, 1.0, 0.0), IOR_AIR / u_waterIor); vec2 causticsUv = v_worldPos.xz - v_worldPos.y * refractedLight.xz / refractedLight.y; causticsUv = causticsUv * 0.5 + 0.5; float caustics = texture2D(u_causticsTexture, causticsUv).r; gl_FragColor.rgb += vec3(1.0) * caustics * 0.5; float depth = waterHeight - v_worldPos.y; float fogFactor = 1.0 - exp(-depth * 2.0); vec3 waterColor = u_deepColor; if (!u_useCustomColor) waterColor = vec3(0.0, 0.1, 0.2); gl_FragColor.rgb = mix(gl_FragColor.rgb, waterColor, fogFactor); }`);
+            shader.uniforms.u_time = { value: 0 };
+
+            shader.vertexShader = `
+                varying vec3 v_worldPos; 
+                uniform float u_time; 
+                uniform sampler2D u_waterTexture;
+            \n` + shader.vertexShader
+                .replace('#include <begin_vertex>', `
+                    #include <begin_vertex>
+                    // Calculate world position for water height sampling
+                    vec3 worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+                    vec2 waterUv = worldPos.xz * 0.5 + 0.5;
+                    waterUv.y = 1.0 - waterUv.y;
+                    float waterHeight = texture2D(u_waterTexture, waterUv).r;
+                    
+                    // Apply horizontal wavy distortion if submerged
+                    if (worldPos.y < waterHeight) {
+                        float depth = waterHeight - worldPos.y;
+                        float strength = smoothstep(0.0, 0.1, depth);
+                        // Subtle horizontal wavy distortion (X and Z)
+                        float waveX = sin(worldPos.y * 15.0 + u_time * 2.5) * 0.005;
+                        float waveZ = cos(worldPos.y * 15.0 + u_time * 2.5) * 0.005;
+                        transformed.x += waveX * strength;
+                        transformed.z += waveZ * strength;
+                    }
+                `)
+                .replace('#include <project_vertex>', 
+                `#include <project_vertex>\nv_worldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+            
+            shader.fragmentShader = `
+                uniform sampler2D u_causticsTexture; 
+                uniform sampler2D u_waterTexture; 
+                uniform vec3 u_lightDir; 
+                uniform float u_waterIor; 
+                uniform vec3 u_deepColor; 
+                uniform bool u_useCustomColor; 
+                varying vec3 v_worldPos; 
+                const float IOR_AIR = 1.0;
+            \n` + shader.fragmentShader.replace('#include <dithering_fragment>', `
+                #include <dithering_fragment>
+                vec2 s_waterUv = v_worldPos.xz * 0.5 + 0.5; 
+                s_waterUv.y = 1.0 - s_waterUv.y; 
+                float s_waterHeight = texture2D(u_waterTexture, s_waterUv).r; 
+                if (v_worldPos.y < s_waterHeight) { 
+                    vec3 refractedLight = refract(-u_lightDir, vec3(0.0, 1.0, 0.0), IOR_AIR / u_waterIor); 
+                    vec2 causticsUv = v_worldPos.xz - v_worldPos.y * refractedLight.xz / refractedLight.y; 
+                    causticsUv = causticsUv * 0.5 + 0.5; 
+                    
+                    // Caustics Enhancement: Blur + RGB Shift
+                    float shift = 0.005;
+                    float r = texture2D(u_causticsTexture, causticsUv + shift).r;
+                    float g = texture2D(u_causticsTexture, causticsUv).r;
+                    float b = texture2D(u_causticsTexture, causticsUv - shift).r;
+                    vec3 causticColor = vec3(r, g, b) * 0.8; 
+                    
+                    // Depth-based falloff
+                    float depth = s_waterHeight - v_worldPos.y;
+                    causticColor *= clamp(1.0 - depth * 0.5, 0.0, 1.0);
+                    gl_FragColor.rgb += causticColor;
+
+                    float fogFactor = 1.0 - exp(-depth * 2.0); 
+                    vec3 waterColor = u_deepColor; 
+                    if (!u_useCustomColor) waterColor = vec3(0.0, 0.1, 0.2); 
+                    gl_FragColor.rgb = mix(gl_FragColor.rgb, waterColor, fogFactor); 
+                }
+            `);
             this.sphereShader = shader as Shader;
         };
     }
+
 
     private onPointerDown = (e: PointerEvent) => {
         this.updatePointer(e);
@@ -516,8 +653,10 @@ export class WaterEngine {
         }
 
         // Wind & Simulation
-        this.waterSim.addDrop( Math.sin(this.accumulatedWaveTime * 0.3 + 2) * 0.5 + 0.5, Math.cos(this.accumulatedWaveTime * 0.5 + 1) * 0.5 + 0.5, 0.05, this.windStrength);
-        this.waterSim.addDrop( Math.sin(this.accumulatedWaveTime * 0.2 - 1) * 0.5 + 0.5, Math.cos(this.accumulatedWaveTime * 0.4 - 3) * 0.5 + 0.5, 0.08, -this.windStrength * 0.7);
+        // Add more drops with varied frequencies for a more natural, continuous wave pattern
+        this.waterSim.addDrop(Math.sin(this.accumulatedWaveTime * 0.25) * 0.4 + 0.5, Math.cos(this.accumulatedWaveTime * 0.35) * 0.4 + 0.5, 0.06, this.windStrength);
+        this.waterSim.addDrop(Math.sin(this.accumulatedWaveTime * 0.15 + 2.0) * 0.4 + 0.5, Math.cos(this.accumulatedWaveTime * 0.25 + 1.0) * 0.4 + 0.5, 0.09, -this.windStrength * 0.8);
+        this.waterSim.addDrop(Math.sin(this.accumulatedWaveTime * 0.4 + 4.0) * 0.4 + 0.5, Math.cos(this.accumulatedWaveTime * 0.2 + 5.0) * 0.4 + 0.5, 0.04, this.windStrength * 0.6);
 
         // Sphere Interaction
         if(this.oldSpherePos.distanceTo(this.sphere.position) > 0.001) {
@@ -555,11 +694,13 @@ export class WaterEngine {
 
         // Update Uniforms
         if(this.poolShader) {
+            this.poolShader.uniforms.u_time.value = time;
             this.poolShader.uniforms.u_lightDir.value.copy(this.sunLight.position);
             this.poolShader.uniforms.u_waterTexture.value = texture;
             this.poolShader.uniforms.u_sphereCenter.value.copy(this.sphere.position);
         }
         if(this.sphereShader) {
+            this.sphereShader.uniforms.u_time.value = time;
             this.sphereShader.uniforms.u_lightDir.value.copy(this.sunLight.position);
             this.sphereShader.uniforms.u_waterTexture.value = texture;
         }
